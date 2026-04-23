@@ -196,3 +196,4 @@ coverage/
 apps/web/.turbo/
 apps/web/test-results/
 pnpm-lock.yaml
+*.tsbuildinfo
