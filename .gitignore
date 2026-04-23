@@ -27,6 +27,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+!apps/web/lib/
+!apps/web/lib/**
 lib64/
 parts/
 sdist/
@@ -186,6 +188,16 @@ cython_debug/
 
 # Ruff stuff:
 .ruff_cache/
+.vercel/
+apps/web/.vercel/
 
 # PyPI configuration file
 .pypirc
+.claude/settings.local.json
+node_modules/
+.next/
+coverage/
+apps/web/.turbo/
+apps/web/test-results/
+*.tsbuildinfo
+.vercel

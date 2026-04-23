@@ -29,21 +29,34 @@ clean:
 ## Lint using ruff (use `make format` to do formatting)
 .PHONY: lint
 lint:
-	ruff format --check
-	ruff check
+	uv run ruff format --check .
+	uv run ruff check .
+	cd apps/web && ./node_modules/.bin/eslint .
 
 ## Format source code with ruff
 .PHONY: format
 format:
-	ruff check --fix
-	ruff format
+	uv run ruff check . --fix
+	uv run ruff format .
 
 
 
 ## Run tests
 .PHONY: test
 test:
-	python -m pytest tests
+	uv run pytest
+	pnpm --dir apps/web test
+
+## Type checking
+.PHONY: typecheck
+typecheck:
+	uv run ty check
+	pnpm --dir apps/web typecheck
+
+## Apply Neon schema to the configured database
+.PHONY: apply_schema
+apply_schema:
+	uv run python apps/api/scripts/apply_schema.py
 
 
 ## Set up Python interpreter environment

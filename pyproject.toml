@@ -16,19 +16,28 @@ classifiers = [
     "License :: OSI Approved :: MIT License"
 ]
 dependencies = [
+    "anthropic",
+    "asyncpg",
+    "fastapi",
+    "httpx",
     "mkdocs",
     "pip",
+    "pydantic-settings",
     "pytest",
+    "pytest-asyncio",
     "python-dotenv",
+    "python-telegram-bot==20.7",
     "ruff",
+    "ty",
+    "uvicorn",
 ]
 requires-python = "~=3.14.0"
 
 
 [tool.ruff]
 line-length = 99
-src = ["msdp"]
-include = ["pyproject.toml", "msdp/**/*.py"]
+src = ["msdp", "apps/api/msdp_api", "tests"]
+include = ["pyproject.toml", "msdp/**/*.py", "apps/api/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -36,6 +45,9 @@ ignore = [
     "COM812", # trailing comma — conflicts with formatter
     "D203",   # incompatible with D211 (no-blank-line-before-class)
     "D212",   # incompatible with D213 (multi-line-summary-second-line)
+    "TC001",  # keep runtime imports close to FastAPI and Pydantic usage
+    "TC002",  # keep third-party imports at module scope
+    "TC003",  # keep standard imports at module scope for readability
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -53,10 +65,24 @@ ignore = [
     "ANN",    # type annotations not required in live tests
     "INP001", # live_tests/ doesn't need __init__.py
 ]
+"apps/api/msdp_api/repositories/protocols.py" = [
+    "D102",
+]
+"apps/api/msdp_api/telegram/gateway.py" = [
+    "D102",
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["slg"]
+known-first-party = ["msdp", "msdp_api"]
 force-sort-within-sections = true
+
+[tool.pytest.ini_options]
+pythonpath = ["apps/api", "."]
+asyncio_mode = "auto"
+
+[tool.ty.environment]
+root = ["./apps/api", "."]
+extra-paths = ["./apps/api"]
