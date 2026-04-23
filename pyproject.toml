@@ -1,0 +1,62 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "msdp"
+version = "0.0.1"
+description = "The project aims to finalize the design of an open-source platform for massively scalable deliberation, build a first prototype, and develop experimental designs to verify its usefulness with both LLM agents and human"
+authors = [
+  { name = "Kevin Blin, Ahmed Haj Ahmed, Katharina Hofmann, Marlon Julian Nombrado, Maurice Flechtner" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License"
+]
+dependencies = [
+    "mkdocs",
+    "pip",
+    "pytest",
+    "python-dotenv",
+    "ruff",
+]
+requires-python = "~=3.14.0"
+
+
+[tool.ruff]
+line-length = 99
+src = ["msdp"]
+include = ["pyproject.toml", "msdp/**/*.py"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # trailing comma — conflicts with formatter
+    "D203",   # incompatible with D211 (no-blank-line-before-class)
+    "D212",   # incompatible with D213 (multi-line-summary-second-line)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "D",       # docstrings not required in tests
+    "ANN",     # type annotations not required in tests
+    "S101",    # assert is expected in pytest
+    "INP001",  # tests/ doesn't need __init__.py
+    "PLR2004", # magic values are fine in tests
+    "FBT",     # boolean args are fine in test helpers
+]
+"live_tests/**" = [
+    "T201",   # print() allowed in live tests
+    "D",      # docstrings not required in live tests
+    "ANN",    # type annotations not required in live tests
+    "INP001", # live_tests/ doesn't need __init__.py
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["slg"]
+force-sort-within-sections = true

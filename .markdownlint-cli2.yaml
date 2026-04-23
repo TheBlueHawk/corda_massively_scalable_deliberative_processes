@@ -1,0 +1,7 @@
+ignores:
+  - ".venv/**"
+  - "TODO.md"
+
+config:
+  MD013: false  # line-length: too strict for prose docs
+  MD033: false  # inline-html: needed for README badge

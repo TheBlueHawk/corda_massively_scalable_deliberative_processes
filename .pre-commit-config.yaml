@@ -1,0 +1,28 @@
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.1
+  hooks:
+    - id: ruff-check
+      args: ["--fix"]
+    - id: ruff-format
+
+- repo: https://github.com/DavidAnson/markdownlint-cli2
+  rev: v0.21.0
+  hooks:
+    - id: markdownlint-cli2
+
+- repo: local
+  hooks:
+    - id: ty-check
+      name: ty check
+      entry: uv run ty check
+      language: system
+      pass_filenames: false
+      stages: [pre-commit]
+
+    - id: pytest
+      name: pytest
+      entry: uv run pytest
+      language: system
+      pass_filenames: false
+      stages: [pre-push]
