@@ -1,6 +1,7 @@
 ignores:
   - ".venv/**"
   - ".agents/**"
+  - ".claude/**"
   - "TODO.md"
 
 config:
