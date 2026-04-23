@@ -186,6 +186,8 @@ cython_debug/
 
 # Ruff stuff:
 .ruff_cache/
+.vercel/
+apps/web/.vercel/
 
 # PyPI configuration file
 .pypirc
@@ -195,5 +197,5 @@ node_modules/
 coverage/
 apps/web/.turbo/
 apps/web/test-results/
-pnpm-lock.yaml
 *.tsbuildinfo
+.vercel
