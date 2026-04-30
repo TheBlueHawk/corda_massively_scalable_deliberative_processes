@@ -31,6 +31,12 @@ class InMemoryRepository:
         """Return a topic by id."""
         return self.topics.get(topic_id)
 
+    async def list_topics(self) -> list[Topic]:
+        """Return all public topics, newest first."""
+        topics = list(self.topics.values())
+        topics.sort(key=lambda item: item.created_at, reverse=True)
+        return topics
+
     async def list_due_topics(self, now: datetime) -> list[Topic]:
         """Return active topics whose close time has passed."""
         due = [

@@ -106,6 +106,17 @@ class ActiveTopicResponse(BaseModel):
     closes_at: datetime | None
 
 
+class TopicListItemResponse(BaseModel):
+    """Public response for a topic listed on the homepage."""
+
+    id: UUID
+    title: str
+    description: str | None
+    status: TopicStatus
+    closes_at: datetime | None
+    created_at: datetime
+
+
 class SummaryResponse(BaseModel):
     """Public response for group summaries."""
 

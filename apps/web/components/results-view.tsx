@@ -1,5 +1,7 @@
 import { GroupSummary } from "@/lib/api";
 
+import { MarkdownSummary } from "./markdown-summary";
+
 type ResultsViewProps = {
   topicId: string;
   summaries: GroupSummary[];
@@ -26,7 +28,7 @@ export function ResultsView({ topicId, summaries }: ResultsViewProps) {
           {summaries.map((summary, index) => (
             <article className="summary-entry" key={summary.group_id}>
               <p className="summary-kicker">Group {index + 1}</p>
-              <pre>{summary.content}</pre>
+              <MarkdownSummary content={summary.content} />
             </article>
           ))}
         </section>

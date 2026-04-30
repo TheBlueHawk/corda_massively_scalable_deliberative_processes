@@ -22,6 +22,27 @@ def test_get_active_topic(client, repository):
     assert response.json()["title"] == "Citizens assembly"
 
 
+def test_list_topics_newest_first(client):
+    first = client.post(
+        "/admin/topics",
+        headers={"X-Admin-Key": "admin-key"},
+        json={"title": "First discussion", "description": "Earlier topic."},
+    ).json()["topic"]
+    second = client.post(
+        "/admin/topics",
+        headers={"X-Admin-Key": "admin-key"},
+        json={"title": "Second discussion", "description": "Later topic."},
+    ).json()["topic"]
+
+    response = client.get("/topics")
+
+    assert response.status_code == 200
+    topics = response.json()
+    assert [item["id"] for item in topics] == [second["id"], first["id"]]
+    assert topics[0]["status"] == "active"
+    assert topics[0]["created_at"] is not None
+
+
 def test_admin_requires_correct_key(client):
     response = client.post(
         "/admin/topics",

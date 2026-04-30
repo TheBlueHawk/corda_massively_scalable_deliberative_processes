@@ -91,6 +91,17 @@ class PostgresRepository:
             row = await conn.fetchrow(query, topic_id)
         return _row_to_topic(row) if row else None
 
+    async def list_topics(self) -> Sequence[Topic]:
+        """Return all public topics, newest first."""
+        query = """
+            SELECT id, title, description, status, closes_at, created_at
+            FROM topics
+            ORDER BY created_at DESC
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query)
+        return [_row_to_topic(row) for row in rows]
+
     async def list_due_topics(self, now: datetime) -> Sequence[Topic]:
         """Return active topics whose close time has passed."""
         query = """

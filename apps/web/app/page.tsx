@@ -1,28 +1,28 @@
 import { ErrorState } from "@/components/error-state";
 import { HomeView } from "@/components/home-view";
-import { fetchActiveTopic } from "@/lib/api";
+import { fetchTopics } from "@/lib/api";
 
 export default async function HomePage() {
   try {
-    const topic = await fetchActiveTopic();
+    const topics = await fetchTopics();
     const botUsername = process.env.TELEGRAM_BOT_USERNAME;
     if (!botUsername) {
       throw new Error("Missing TELEGRAM_BOT_USERNAME environment variable.");
     }
-    return renderHomeView(topic, botUsername);
+    return renderHomeView(topics, botUsername);
   } catch (error) {
     return (
       <ErrorState
-        title="Topic unavailable"
-        detail={error instanceof Error ? error.message : "Failed to load the active topic."}
+        title="Topics unavailable"
+        detail={error instanceof Error ? error.message : "Failed to load topics."}
       />
     );
   }
 }
 
 function renderHomeView(
-  topic: Awaited<ReturnType<typeof fetchActiveTopic>>,
+  topics: Awaited<ReturnType<typeof fetchTopics>>,
   botUsername: string,
 ) {
-  return <HomeView topic={topic} botUsername={botUsername} />;
+  return <HomeView topics={topics} botUsername={botUsername} />;
 }

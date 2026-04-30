@@ -5,6 +5,13 @@ export type ActiveTopic = {
   closes_at: string | null;
 };
 
+export type TopicStatus = "active" | "closed";
+
+export type TopicListItem = ActiveTopic & {
+  status: TopicStatus;
+  created_at: string;
+};
+
 export type GroupSummary = {
   group_id: string;
   content: string;
@@ -25,6 +32,14 @@ export async function fetchActiveTopic(): Promise<ActiveTopic> {
     throw new Error("Failed to load active topic.");
   }
   return (await response.json()) as ActiveTopic;
+}
+
+export async function fetchTopics(): Promise<TopicListItem[]> {
+  const response = await fetch(`${getApiBaseUrl()}/topics`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to load topics.");
+  }
+  return (await response.json()) as TopicListItem[];
 }
 
 export async function fetchSummaries(topicId: string): Promise<GroupSummary[]> {
