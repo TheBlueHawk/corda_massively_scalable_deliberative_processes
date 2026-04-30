@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import asyncpg
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from msdp_api.api.routes_admin import router as admin_router
 from msdp_api.api.routes_public import router as public_router
@@ -99,6 +100,12 @@ def create_app(
     app = FastAPI(
         title="CORDA Deliberation API",
         lifespan=lifespan if settings is None and repository is None else None,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Admin-Key"],
     )
     app.include_router(public_router)
     app.include_router(webhook_router)

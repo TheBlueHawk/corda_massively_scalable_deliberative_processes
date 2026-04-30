@@ -320,6 +320,204 @@ h1 {
   padding-top: 5rem;
 }
 
+.admin-shell {
+  display: grid;
+  gap: 1.25rem;
+  padding-top: 5rem;
+}
+
+.admin-hero,
+.admin-panel,
+.admin-topic-card,
+.admin-keybar {
+  background: var(--panel);
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.admin-hero,
+.admin-panel,
+.admin-topic-card {
+  padding: 1.5rem;
+}
+
+.admin-hero h1 {
+  max-width: 10ch;
+}
+
+.admin-keybar,
+.admin-form,
+.admin-actions,
+.admin-metrics,
+.admin-topic-header {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.admin-keybar {
+  align-items: end;
+  padding: 1rem;
+}
+
+.admin-keybar label,
+.admin-form {
+  flex: 1;
+}
+
+.admin-keybar label,
+.admin-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+}
+
+.admin-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.5fr) minmax(180px, 0.8fr) auto;
+  margin-top: 1rem;
+}
+
+.admin-edit-form {
+  border-top: 1px solid rgba(17, 17, 17, 0.08);
+  padding-top: 1rem;
+}
+
+.admin-form input,
+.admin-form textarea,
+.admin-keybar input {
+  width: 100%;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  background: rgba(255, 252, 247, 0.74);
+  color: var(--ink);
+  font: inherit;
+  padding: 0.8rem;
+}
+
+.admin-form textarea {
+  min-height: 3rem;
+  resize: vertical;
+}
+
+.admin-shell button {
+  border: 0;
+  background: var(--ink);
+  color: #fff8f0;
+  cursor: pointer;
+  font-family: Avenir, "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 800;
+  padding: 0.85rem 1rem;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.admin-shell button:hover {
+  background: var(--accent);
+}
+
+.admin-secondary-button {
+  margin-top: 1rem;
+}
+
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.admin-metric {
+  background: rgba(255, 252, 247, 0.6);
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  padding: 1rem;
+}
+
+.admin-metric span,
+.admin-muted,
+.admin-group-table button,
+.admin-transcript span {
+  color: var(--muted);
+}
+
+.admin-metric strong {
+  display: block;
+  color: var(--ink);
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1;
+  margin-top: 0.4rem;
+}
+
+.admin-topic-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-topic-header {
+  justify-content: space-between;
+}
+
+.admin-topic-header h2,
+.admin-panel h2 {
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  line-height: 1;
+}
+
+.admin-topic-header p {
+  max-width: 44rem;
+}
+
+.admin-group-table {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.admin-group-table button {
+  display: grid;
+  grid-template-columns: 1fr repeat(3, auto);
+  gap: 1rem;
+  text-align: left;
+  background: rgba(255, 252, 247, 0.72);
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  color: var(--ink);
+}
+
+.admin-group-table button:hover {
+  background: #fff8f0;
+  color: var(--ink);
+}
+
+.admin-transcript {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.admin-transcript article {
+  border-top: 1px solid rgba(17, 17, 17, 0.08);
+  padding-top: 0.75rem;
+}
+
+.admin-transcript p {
+  margin: 0.4rem 0 0;
+}
+
+.admin-error,
+.admin-notice {
+  margin: 0;
+  padding: 1rem;
+}
+
+.admin-error {
+  background: rgba(196, 73, 45, 0.12);
+  color: #8f2f1d;
+}
+
+.admin-notice {
+  background: rgba(45, 124, 70, 0.12);
+  color: #245b34;
+}
+
 .summary-list {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
@@ -376,6 +574,12 @@ h1 {
 
   .topic-slide-featured {
     grid-column: span 1;
+  }
+
+  .admin-form,
+  .admin-metrics,
+  .admin-group-table button {
+    grid-template-columns: 1fr;
   }
 
   h1 {

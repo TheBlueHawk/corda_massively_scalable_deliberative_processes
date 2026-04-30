@@ -6,7 +6,16 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from msdp_api.db.models import Group, Summary, ThreadMessage, Topic, TopicCreate, TopicStatus, User
+from msdp_api.db.models import (
+    Group,
+    Summary,
+    ThreadMessage,
+    Topic,
+    TopicCreate,
+    TopicStatus,
+    TopicUpdate,
+    User,
+)
 
 
 class InMemoryRepository:
@@ -63,6 +72,25 @@ class InMemoryRepository:
         )
         self.topics[topic.id] = topic
         return topic
+
+    async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
+        """Update mutable topic fields."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        updated = topic.model_copy(
+            update={
+                "title": payload.title if payload.title is not None else topic.title,
+                "description": (
+                    payload.description if payload.description is not None else topic.description
+                ),
+                "closes_at": payload.closes_at
+                if payload.closes_at is not None
+                else topic.closes_at,
+            },
+        )
+        self.topics[topic_id] = updated
+        return updated
 
     async def close_topic(self, topic_id: UUID) -> Topic | None:
         """Mark a topic as closed."""

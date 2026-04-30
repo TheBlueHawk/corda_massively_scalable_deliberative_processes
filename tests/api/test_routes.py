@@ -125,6 +125,105 @@ def test_admin_summarize_topic(client, repository):
     assert response.json()["summarized_groups"] == 1
 
 
+def test_admin_dashboard_includes_topic_group_and_activity(client, repository):
+    topic = asyncio.run(repository.create_topic(TopicCreate(title="Dashboard topic")))
+    group = asyncio.run(
+        repository.create_group(
+            topic_id=topic.id,
+            thread_id=1,
+            invite_link="https://example.com/1",
+            capacity=2,
+            telegram_topic_name="Group 1",
+        ),
+    )
+    asyncio.run(repository.increment_group_member_count(group.id))
+    asyncio.run(
+        repository.store_thread_message(
+            ThreadMessage(
+                message_id=1,
+                thread_id=1,
+                group_id=group.id,
+                telegram_user_id=1,
+                username="participant",
+                first_name="Participant",
+                text="One message.",
+                sent_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+            ),
+        ),
+    )
+    asyncio.run(repository.upsert_summary(group.id, "- Summary"))
+
+    response = client.get("/admin/dashboard", headers={"X-Admin-Key": "admin-key"})
+
+    assert response.status_code == 200
+    dashboard = response.json()
+    assert dashboard["active_topic_id"] == str(topic.id)
+    assert dashboard["topics"][0]["topic"]["title"] == "Dashboard topic"
+    assert dashboard["topics"][0]["participant_count"] == 1
+    assert dashboard["topics"][0]["message_count"] == 1
+    assert dashboard["topics"][0]["summary_count"] == 1
+    assert dashboard["topics"][0]["groups"][0]["has_summary"] is True
+
+
+def test_admin_update_and_close_topic(client):
+    topic = client.post(
+        "/admin/topics",
+        headers={"X-Admin-Key": "admin-key"},
+        json={"title": "Old title"},
+    ).json()["topic"]
+
+    updated = client.patch(
+        f"/admin/topics/{topic['id']}",
+        headers={"X-Admin-Key": "admin-key"},
+        json={"title": "New title", "description": "Updated description."},
+    )
+    closed = client.post(
+        f"/admin/topics/{topic['id']}/close",
+        headers={"X-Admin-Key": "admin-key"},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["topic"]["title"] == "New title"
+    assert updated.json()["topic"]["description"] == "Updated description."
+    assert closed.status_code == 200
+    assert closed.json()["topic"]["status"] == "closed"
+
+
+def test_admin_list_group_messages(client, repository):
+    topic = asyncio.run(repository.create_topic(TopicCreate(title="Transcript topic")))
+    group = asyncio.run(
+        repository.create_group(
+            topic_id=topic.id,
+            thread_id=1,
+            invite_link="https://example.com/1",
+            capacity=2,
+            telegram_topic_name="Group 1",
+        ),
+    )
+    asyncio.run(
+        repository.store_thread_message(
+            ThreadMessage(
+                message_id=1,
+                thread_id=1,
+                group_id=group.id,
+                telegram_user_id=1,
+                username="participant",
+                first_name="Participant",
+                text="Transcript message.",
+                sent_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+            ),
+        ),
+    )
+
+    response = client.get(
+        f"/admin/groups/{group.id}/messages",
+        headers={"X-Admin-Key": "admin-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["text"] == "Transcript message."
+
+
 def test_admin_summarize_due_topics(client, repository):
     due_topic = asyncio.run(
         repository.create_topic(

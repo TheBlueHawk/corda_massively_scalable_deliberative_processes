@@ -8,7 +8,16 @@ from uuid import UUID
 
 import asyncpg
 
-from msdp_api.db.models import Group, Summary, ThreadMessage, Topic, TopicCreate, TopicStatus, User
+from msdp_api.db.models import (
+    Group,
+    Summary,
+    ThreadMessage,
+    Topic,
+    TopicCreate,
+    TopicStatus,
+    TopicUpdate,
+    User,
+)
 
 
 def _row_to_topic(row: asyncpg.Record) -> Topic:
@@ -135,6 +144,27 @@ class PostgresRepository:
             msg = "Topic insert returned no row."
             raise RuntimeError(msg)
         return _row_to_topic(row)
+
+    async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
+        """Update mutable topic fields."""
+        existing = await self.get_topic(topic_id)
+        if existing is None:
+            return None
+        query = """
+            UPDATE topics
+            SET title = $2, description = $3, closes_at = $4
+            WHERE id = $1
+            RETURNING id, title, description, status, closes_at, created_at
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                query,
+                topic_id,
+                payload.title if payload.title is not None else existing.title,
+                (payload.description if payload.description is not None else existing.description),
+                payload.closes_at if payload.closes_at is not None else existing.closes_at,
+            )
+        return _row_to_topic(row) if row else None
 
     async def close_topic(self, topic_id: UUID) -> Topic | None:
         """Mark a topic as closed."""
