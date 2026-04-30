@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
+import logging
 from typing import TYPE_CHECKING
 
 import asyncpg
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from msdp_api.api.routes_admin import router as admin_router
 from msdp_api.api.routes_public import router as public_router
@@ -23,6 +26,21 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from msdp_api.repositories.protocols import Repository
+
+logger = logging.getLogger(__name__)
+
+
+async def _run_due_summarization_loop(
+    summarization_service: SummarizationService,
+    interval_seconds: int,
+) -> None:
+    """Periodically summarize topics whose close time has passed."""
+    while True:
+        try:
+            await summarization_service.summarize_due_topics()
+        except Exception:
+            logger.exception("Failed to summarize due topics.")
+        await asyncio.sleep(interval_seconds)
 
 
 @asynccontextmanager
@@ -52,6 +70,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.repository = repository
     app.state.group_assignment_service = group_assignment_service
     app.state.summarization_service = summarization_service
+    summary_task = asyncio.create_task(
+        _run_due_summarization_loop(
+            summarization_service=summarization_service,
+            interval_seconds=settings.summary_check_interval_seconds,
+        ),
+    )
+    app.state.summary_task = summary_task
     app.state.telegram_webhook_service = TelegramWebhookService(
         repository=repository,
         group_assignment_service=group_assignment_service,
@@ -59,6 +84,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        summary_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await summary_task
         await pool.close()
 
 
@@ -72,6 +100,12 @@ def create_app(
     app = FastAPI(
         title="CORDA Deliberation API",
         lifespan=lifespan if settings is None and repository is None else None,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Admin-Key"],
     )
     app.include_router(public_router)
     app.include_router(webhook_router)

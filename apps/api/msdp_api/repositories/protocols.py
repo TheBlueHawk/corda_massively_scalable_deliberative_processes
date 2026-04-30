@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from msdp_api.db.models import Group, Summary, ThreadMessage, Topic, TopicCreate, User
+from msdp_api.db.models import Group, Summary, ThreadMessage, Topic, TopicCreate, TopicUpdate, User
 
 
 class Repository(Protocol):
@@ -16,7 +17,15 @@ class Repository(Protocol):
 
     async def get_topic(self, topic_id: UUID) -> Topic | None: ...
 
+    async def list_topics(self) -> Sequence[Topic]: ...
+
+    async def list_due_topics(self, now: datetime) -> Sequence[Topic]: ...
+
     async def create_topic(self, payload: TopicCreate) -> Topic: ...
+
+    async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None: ...
+
+    async def close_topic(self, topic_id: UUID) -> Topic | None: ...
 
     async def list_groups_for_topic(self, topic_id: UUID) -> Sequence[Group]: ...
 

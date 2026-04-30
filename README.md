@@ -52,13 +52,20 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 ## API surface
 
 - `GET /health`
+- `GET /topics`
 - `GET /topics/active`
+- `GET /topics/{topic_id}`
 - `GET /topics/{topic_id}/summaries`
 - `POST /webhook/telegram`
+- `GET /admin/dashboard`
 - `POST /admin/topics`
+- `PATCH /admin/topics/{topic_id}`
+- `POST /admin/topics/{topic_id}/close`
+- `GET /admin/groups/{group_id}/messages`
 - `POST /admin/summarize/{topic_id}`
+- `POST /admin/summarize-due`
 
-Admin endpoints require the `X-Admin-Key` header.
+Admin endpoints require the `X-Admin-Key` header. The web admin dashboard is available at `/admin`.
 
 ## Quality gates
 

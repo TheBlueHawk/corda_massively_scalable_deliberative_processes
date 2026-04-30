@@ -37,6 +37,14 @@ class TopicCreate(BaseModel):
     closes_at: datetime | None = None
 
 
+class TopicUpdate(BaseModel):
+    """Payload used to update an existing deliberation topic."""
+
+    title: str | None = Field(default=None, min_length=1)
+    description: str | None = None
+    closes_at: datetime | None = None
+
+
 class Group(BaseModel):
     """A Telegram forum topic backing a deliberation group."""
 
@@ -106,6 +114,17 @@ class ActiveTopicResponse(BaseModel):
     closes_at: datetime | None
 
 
+class TopicListItemResponse(BaseModel):
+    """Public response for a topic listed on the homepage."""
+
+    id: UUID
+    title: str
+    description: str | None
+    status: TopicStatus
+    closes_at: datetime | None
+    created_at: datetime
+
+
 class SummaryResponse(BaseModel):
     """Public response for group summaries."""
 
@@ -116,6 +135,58 @@ class SummaryResponse(BaseModel):
 
 class TopicCreatedResponse(BaseModel):
     """Admin response after topic creation."""
+
+    topic: Topic
+
+
+class AdminGroupOverview(BaseModel):
+    """Admin-facing group status and activity metrics."""
+
+    id: UUID
+    topic_id: UUID
+    thread_id: int
+    invite_link: str
+    capacity: int
+    member_count: int
+    telegram_topic_name: str
+    message_count: int
+    has_summary: bool
+    summary_created_at: datetime | None
+
+
+class AdminTopicOverview(BaseModel):
+    """Admin-facing topic status, controls, and aggregate metrics."""
+
+    topic: Topic
+    groups: list[AdminGroupOverview]
+    participant_count: int
+    message_count: int
+    summary_count: int
+
+
+class AdminDashboardResponse(BaseModel):
+    """Admin dashboard payload."""
+
+    topics: list[AdminTopicOverview]
+    active_topic_id: UUID | None
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class AdminThreadMessageResponse(BaseModel):
+    """Admin response item for a captured thread message."""
+
+    message_id: int
+    thread_id: int
+    group_id: UUID
+    telegram_user_id: int | None
+    username: str | None
+    first_name: str | None
+    text: str
+    sent_at: datetime
+
+
+class TopicUpdatedResponse(BaseModel):
+    """Admin response after topic update or close."""
 
     topic: Topic
 
@@ -133,4 +204,11 @@ class SummarizationResult(BaseModel):
 
     topic_id: UUID
     summarized_groups: int
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DueSummarizationResult(BaseModel):
+    """Admin response after summarizing all due topics."""
+
+    summarized_topics: list[SummarizationResult]
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

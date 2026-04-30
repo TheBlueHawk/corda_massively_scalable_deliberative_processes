@@ -6,7 +6,16 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from msdp_api.db.models import Group, Summary, ThreadMessage, Topic, TopicCreate, TopicStatus, User
+from msdp_api.db.models import (
+    Group,
+    Summary,
+    ThreadMessage,
+    Topic,
+    TopicCreate,
+    TopicStatus,
+    TopicUpdate,
+    User,
+)
 
 
 class InMemoryRepository:
@@ -31,6 +40,26 @@ class InMemoryRepository:
         """Return a topic by id."""
         return self.topics.get(topic_id)
 
+    async def list_topics(self) -> list[Topic]:
+        """Return all public topics, newest first."""
+        topics = list(self.topics.values())
+        topics.sort(key=lambda item: item.created_at, reverse=True)
+        return topics
+
+    async def list_due_topics(self, now: datetime) -> list[Topic]:
+        """Return active topics whose close time has passed."""
+        due = [
+            topic
+            for topic in self.topics.values()
+            if topic.status == TopicStatus.ACTIVE
+            and topic.closes_at is not None
+            and topic.closes_at <= now
+        ]
+        due.sort(
+            key=lambda item: (item.closes_at or datetime.max.replace(tzinfo=UTC), item.created_at)
+        )
+        return due
+
     async def create_topic(self, payload: TopicCreate) -> Topic:
         """Create and store a topic."""
         topic = Topic(
@@ -43,6 +72,34 @@ class InMemoryRepository:
         )
         self.topics[topic.id] = topic
         return topic
+
+    async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
+        """Update mutable topic fields."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        updated = topic.model_copy(
+            update={
+                "title": payload.title if payload.title is not None else topic.title,
+                "description": (
+                    payload.description if payload.description is not None else topic.description
+                ),
+                "closes_at": payload.closes_at
+                if payload.closes_at is not None
+                else topic.closes_at,
+            },
+        )
+        self.topics[topic_id] = updated
+        return updated
+
+    async def close_topic(self, topic_id: UUID) -> Topic | None:
+        """Mark a topic as closed."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        closed = topic.model_copy(update={"status": TopicStatus.CLOSED})
+        self.topics[topic_id] = closed
+        return closed
 
     async def list_groups_for_topic(self, topic_id: UUID) -> list[Group]:
         """Return groups belonging to the topic."""

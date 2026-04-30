@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from msdp_api.api.dependencies import get_repository
-from msdp_api.db.models import ActiveTopicResponse, SummaryResponse
+from msdp_api.db.models import ActiveTopicResponse, SummaryResponse, TopicListItemResponse
 from msdp_api.repositories.protocols import Repository
 
 router = APIRouter()
@@ -33,6 +33,44 @@ async def get_active_topic(
         title=topic.title,
         description=topic.description,
         closes_at=topic.closes_at,
+    )
+
+
+@router.get("/topics", response_model=list[TopicListItemResponse])
+async def list_topics(
+    repository: Annotated[Repository, Depends(get_repository)],
+) -> list[TopicListItemResponse]:
+    """Return public topics for the homepage timeline."""
+    topics = await repository.list_topics()
+    return [
+        TopicListItemResponse(
+            id=topic.id,
+            title=topic.title,
+            description=topic.description,
+            status=topic.status,
+            closes_at=topic.closes_at,
+            created_at=topic.created_at,
+        )
+        for topic in topics
+    ]
+
+
+@router.get("/topics/{topic_id}", response_model=TopicListItemResponse)
+async def get_topic(
+    topic_id: UUID,
+    repository: Annotated[Repository, Depends(get_repository)],
+) -> TopicListItemResponse:
+    """Return a public topic by id."""
+    topic = await repository.get_topic(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
+    return TopicListItemResponse(
+        id=topic.id,
+        title=topic.title,
+        description=topic.description,
+        status=topic.status,
+        closes_at=topic.closes_at,
+        created_at=topic.created_at,
     )
 
 

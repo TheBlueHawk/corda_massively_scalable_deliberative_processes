@@ -15,8 +15,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(alias="ANTHROPIC_API_KEY")
     x_admin_key: str = Field(alias="X_ADMIN_KEY")
     telegram_bot_username: str = Field(alias="TELEGRAM_BOT_USERNAME")
-    summary_model: str = Field(default="claude-3-5-haiku-latest", alias="SUMMARY_MODEL")
+    summary_model: str = Field(default="claude-haiku-4-5-20251001", alias="SUMMARY_MODEL")
     group_capacity: int = Field(default=8, alias="GROUP_CAPACITY")
+    summary_check_interval_seconds: int = Field(
+        default=300,
+        alias="SUMMARY_CHECK_INTERVAL_SECONDS",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from msdp_api.db.models import ThreadMessage, TopicCreate, User
+from msdp_api.db.models import ThreadMessage, TopicCreate, TopicStatus, User
 from msdp_api.services.group_assignment import GroupAssignmentService
 from msdp_api.services.summarization import SummarizationService, build_transcript
 
@@ -150,3 +150,50 @@ async def test_summarization_service_upserts_one_summary_per_group(repository, s
     assert first_result.summarized_groups == 1
     assert second_result.summarized_groups == 1
     assert len(await repository.list_summaries_for_topic(topic.id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_summarization_service_summarizes_due_topics_and_closes_them(
+    repository,
+    summarizer,
+):
+    due_topic = await repository.create_topic(
+        TopicCreate(
+            title="Due topic",
+            closes_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        ),
+    )
+    future_topic = await repository.create_topic(
+        TopicCreate(
+            title="Future topic",
+            closes_at=datetime(3026, 4, 23, 10, 0, tzinfo=UTC),
+        ),
+    )
+    group = await repository.create_group(
+        topic_id=due_topic.id,
+        thread_id=11,
+        invite_link="https://example.com/1",
+        capacity=2,
+        telegram_topic_name="Group 1",
+    )
+    await repository.store_thread_message(
+        ThreadMessage(
+            message_id=1,
+            thread_id=11,
+            group_id=group.id,
+            telegram_user_id=1,
+            username="speaker",
+            first_name="Speaker",
+            text="Cars should be restricted downtown.",
+            sent_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        ),
+    )
+    service = SummarizationService(repository, summarizer)
+
+    result = await service.summarize_due_topics(datetime(2026, 4, 23, 11, 0, tzinfo=UTC))
+
+    assert len(result.summarized_topics) == 1
+    assert result.summarized_topics[0].topic_id == due_topic.id
+    assert result.summarized_topics[0].summarized_groups == 1
+    assert (await repository.get_topic(due_topic.id)).status == TopicStatus.CLOSED
+    assert (await repository.get_topic(future_topic.id)).status == TopicStatus.ACTIVE
