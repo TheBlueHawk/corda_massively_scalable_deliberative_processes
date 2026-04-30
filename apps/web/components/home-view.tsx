@@ -19,6 +19,10 @@ function getStatusLabel(topic: TopicListItem): string {
   return topic.status === "active" ? "Open now" : "Results available";
 }
 
+function getJoinUrl(botUsername: string, topicId: string): string {
+  return `https://t.me/${botUsername}?start=${topicId}`;
+}
+
 export function HomeView({ topics, botUsername }: HomeViewProps) {
   const activeTopic = topics.find((topic) => topic.status === "active") ?? null;
   const pastTopics = topics.filter((topic) => topic.status === "closed");
@@ -43,7 +47,7 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
           {activeTopic ? (
             <a
               className="primary-link"
-              href={`https://t.me/${botUsername}?start=${activeTopic.id}`}
+              href={getJoinUrl(botUsername, activeTopic.id)}
               target="_blank"
               rel="noreferrer"
             >
@@ -55,6 +59,42 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
               {activeTopic ? "See Results" : "Read Latest Summary"}
             </a>
           ) : null}
+        </div>
+      </section>
+      <section className="intro-section" aria-labelledby="intro-title">
+        <div>
+          <p className="eyebrow">Why CORDA</p>
+          <h2 id="intro-title">Have something to say? Then become part of our conversations.</h2>
+        </div>
+        <div className="intro-copy">
+          <p>
+            We believe every voice matters. Not because all opinions are the same, but because every
+            perspective adds something we cannot see alone.
+          </p>
+          <p>
+            We turn fast-moving chats into structured dialogue - focused on understanding, not
+            winning. A space to reflect, challenge ideas, and think through societal issues together.
+          </p>
+          <p>
+            No silencing. Instead, we guide conversations through thoughtful prompts that encourage
+            clarity, openness, and reflection.
+          </p>
+          <p>
+            Our goal: better dialogue, shared responsibility, and more meaningful outcomes. Join us
+            on Telegram and take part in your first structured discussion.
+          </p>
+          {activeTopic ? (
+            <a
+              className="text-link"
+              href={getJoinUrl(botUsername, activeTopic.id)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Join us on Telegram
+            </a>
+          ) : (
+            <p className="soft-note">The next discussion will appear here soon.</p>
+          )}
         </div>
       </section>
       {topics.length > 0 ? (

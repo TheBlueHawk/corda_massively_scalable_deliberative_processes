@@ -63,6 +63,7 @@ a {
 }
 
 .hero,
+.intro-section,
 .results-header,
 .empty-state,
 .summary-entry {
@@ -98,10 +99,17 @@ h1 {
   max-width: 12ch;
 }
 
+.intro-section h2 {
+  font-size: clamp(2.3rem, 5vw, 4.8rem);
+  line-height: 0.98;
+  max-width: 11ch;
+}
+
 .lede,
 .support-grid p,
 .empty-state p,
 .meta-line,
+.intro-copy,
 .markdown-summary {
   color: var(--muted);
   font-size: 1.05rem;
@@ -151,6 +159,21 @@ h1 {
   transform: translateY(-2px);
 }
 
+.text-link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  color: var(--ink);
+  font-family: Avenir, "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 180ms ease;
+}
+
+.text-link:hover {
+  color: var(--accent);
+}
+
 .support-grid,
 .summary-list {
   display: grid;
@@ -159,6 +182,34 @@ h1 {
 
 .support-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.intro-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1.1fr);
+  gap: clamp(2rem, 7vw, 5rem);
+  padding: 2rem 3rem;
+}
+
+.intro-copy {
+  max-width: 42rem;
+}
+
+.intro-copy p {
+  margin: 0;
+}
+
+.intro-copy p + p,
+.intro-copy p + .text-link,
+.intro-copy p + .soft-note {
+  margin-top: 1rem;
+}
+
+.soft-note {
+  color: var(--accent);
+  font-family: Avenir, "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .support-grid > div,
@@ -311,6 +362,11 @@ h1 {
 
   .support-grid {
     grid-template-columns: 1fr;
+  }
+
+  .intro-section {
+    grid-template-columns: 1fr;
+    padding: 2rem;
   }
 
   .topic-rail {

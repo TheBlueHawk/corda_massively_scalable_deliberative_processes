@@ -21,7 +21,17 @@ describe("HomeView", () => {
     );
 
     expect(screen.getByRole("heading", { level: 1, name: "Climate assembly" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Have something to say? Then become part of our conversations.",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/We believe every voice matters/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Join a Group" })).toHaveAttribute(
+      "href",
+      "https://t.me/corda_bot?start=topic-1",
+    );
+    expect(screen.getByRole("link", { name: "Join us on Telegram" })).toHaveAttribute(
       "href",
       "https://t.me/corda_bot?start=topic-1",
     );
@@ -46,6 +56,7 @@ describe("HomeView", () => {
 
     expect(screen.getByText("No active topic")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Next topic lands soon" })).toBeInTheDocument();
+    expect(screen.getByText("The next discussion will appear here soon.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Read Latest Summary" })).toHaveAttribute(
       "href",
       "/results?topicId=topic-1",
