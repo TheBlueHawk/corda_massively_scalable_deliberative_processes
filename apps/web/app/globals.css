@@ -31,26 +31,24 @@ a {
 
 .site-mark {
   position: fixed;
-  top: 1rem;
+  top: 1.35rem;
   left: 1rem;
   z-index: 10;
-  padding: 0.65rem 0.85rem;
-  background: rgba(248, 244, 238, 0.74);
-  border: 1px solid rgba(17, 17, 17, 0.1);
-  backdrop-filter: blur(12px);
   color: var(--ink);
   font-family: "Arial Narrow", Arial, sans-serif;
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
+  font-size: 0.96rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255, 252, 247, 0.7);
   transition:
-    background-color 180ms ease,
+    color 180ms ease,
     transform 180ms ease;
 }
 
 .site-mark:hover {
-  background: rgba(255, 252, 247, 0.94);
-  transform: translateY(-1px);
+  color: var(--accent);
+  transform: translateY(-1px) translateX(1px);
 }
 
 .shell {

@@ -16,7 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Link className="site-mark" href="/">
-          CORDA Deliberation
+          CORDA
         </Link>
         {children}
       </body>
