@@ -1,19 +1,19 @@
-import { GroupSummary } from "@/lib/api";
+import { GroupSummary, TopicListItem } from "@/lib/api";
 
 import { MarkdownSummary } from "./markdown-summary";
 
 type ResultsViewProps = {
-  topicId: string;
+  topic: TopicListItem;
   summaries: GroupSummary[];
 };
 
-export function ResultsView({ topicId, summaries }: ResultsViewProps) {
+export function ResultsView({ topic, summaries }: ResultsViewProps) {
   return (
     <main className="shell results-shell">
       <section className="results-header">
-        <p className="eyebrow">Topic results</p>
-        <h1>Deliberation summaries</h1>
-        <p className="lede">Topic ID: {topicId}</p>
+        <p className="eyebrow">Summary</p>
+        <h1>{topic.title}</h1>
+        {topic.description ? <p className="lede">{topic.description}</p> : null}
       </section>
       {summaries.length === 0 ? (
         <section className="empty-state">

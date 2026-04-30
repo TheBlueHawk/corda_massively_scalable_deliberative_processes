@@ -1,6 +1,6 @@
 import { ErrorState } from "@/components/error-state";
 import { ResultsView } from "@/components/results-view";
-import { fetchSummaries } from "@/lib/api";
+import { fetchSummaries, fetchTopic } from "@/lib/api";
 
 type ResultsPageProps = {
   searchParams: Promise<{ topicId?: string }>;
@@ -18,8 +18,8 @@ export default async function ResultsPage({ searchParams }: ResultsPageProps) {
     );
   }
   try {
-    const summaries = await fetchSummaries(topicId);
-    return renderResultsView(topicId, summaries);
+    const [topic, summaries] = await Promise.all([fetchTopic(topicId), fetchSummaries(topicId)]);
+    return renderResultsView(topic, summaries);
   } catch (error) {
     return (
       <ErrorState
@@ -31,8 +31,8 @@ export default async function ResultsPage({ searchParams }: ResultsPageProps) {
 }
 
 function renderResultsView(
-  topicId: string,
+  topic: Awaited<ReturnType<typeof fetchTopic>>,
   summaries: Awaited<ReturnType<typeof fetchSummaries>>,
 ) {
-  return <ResultsView topicId={topicId} summaries={summaries} />;
+  return <ResultsView topic={topic} summaries={summaries} />;
 }

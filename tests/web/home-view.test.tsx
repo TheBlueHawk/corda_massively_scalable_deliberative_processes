@@ -45,6 +45,7 @@ describe("HomeView", () => {
     );
 
     expect(screen.getByText("No active topic")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Next topic lands soon" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Read Latest Summary" })).toHaveAttribute(
       "href",
       "/results?topicId=topic-1",

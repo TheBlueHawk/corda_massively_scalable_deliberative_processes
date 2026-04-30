@@ -54,6 +54,7 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 - `GET /health`
 - `GET /topics`
 - `GET /topics/active`
+- `GET /topics/{topic_id}`
 - `GET /topics/{topic_id}/summaries`
 - `POST /webhook/telegram`
 - `POST /admin/topics`

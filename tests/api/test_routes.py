@@ -43,6 +43,20 @@ def test_list_topics_newest_first(client):
     assert topics[0]["created_at"] is not None
 
 
+def test_get_topic(client):
+    topic = client.post(
+        "/admin/topics",
+        headers={"X-Admin-Key": "admin-key"},
+        json={"title": "Cars downtown", "description": "Discuss car restrictions."},
+    ).json()["topic"]
+
+    response = client.get(f"/topics/{topic['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Cars downtown"
+    assert response.json()["status"] == "active"
+
+
 def test_admin_requires_correct_key(client):
     response = client.post(
         "/admin/topics",

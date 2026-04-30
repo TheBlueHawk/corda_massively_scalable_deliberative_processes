@@ -42,6 +42,14 @@ export async function fetchTopics(): Promise<TopicListItem[]> {
   return (await response.json()) as TopicListItem[];
 }
 
+export async function fetchTopic(topicId: string): Promise<TopicListItem> {
+  const response = await fetch(`${getApiBaseUrl()}/topics/${topicId}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to load topic.");
+  }
+  return (await response.json()) as TopicListItem;
+}
+
 export async function fetchSummaries(topicId: string): Promise<GroupSummary[]> {
   const response = await fetch(`${getApiBaseUrl()}/topics/${topicId}/summaries`, {
     cache: "no-store",

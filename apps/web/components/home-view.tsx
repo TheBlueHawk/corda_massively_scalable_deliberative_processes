@@ -22,13 +22,13 @@ function getStatusLabel(topic: TopicListItem): string {
 export function HomeView({ topics, botUsername }: HomeViewProps) {
   const activeTopic = topics.find((topic) => topic.status === "active") ?? null;
   const pastTopics = topics.filter((topic) => topic.status === "closed");
-  const featuredTopic = activeTopic ?? pastTopics[0] ?? topics[0] ?? null;
+  const latestTopic = pastTopics[0] ?? topics[0] ?? null;
 
   return (
     <main className="shell home-shell">
       <section className="hero">
-        <p className="eyebrow">CORDA Deliberation</p>
-        <h1>{featuredTopic?.title ?? "Next topic lands soon"}</h1>
+        <p className="eyebrow">{activeTopic ? "Live deliberation" : "Between topics"}</p>
+        <h1>{activeTopic?.title ?? "Next topic lands soon"}</h1>
         <p className="lede">
           {activeTopic
             ? (activeTopic.description ??
@@ -50,8 +50,8 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
               Join a Group
             </a>
           ) : null}
-          {featuredTopic ? (
-            <a className="secondary-link" href={`/results?topicId=${featuredTopic.id}`}>
+          {latestTopic ? (
+            <a className="secondary-link" href={`/results?topicId=${latestTopic.id}`}>
               {activeTopic ? "See Results" : "Read Latest Summary"}
             </a>
           ) : null}
@@ -60,8 +60,9 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
       {topics.length > 0 ? (
         <section className="topic-rail-section" aria-labelledby="topic-rail-title">
           <div className="section-heading">
-            <p className="eyebrow">Discussion archive</p>
-            <h2 id="topic-rail-title">Past and current topics</h2>
+            <h2 className="eyebrow" id="topic-rail-title">
+              Discussion archive
+            </h2>
           </div>
           <div className="topic-rail" aria-label="Topic carousel">
             {topics.map((topic, index) => (

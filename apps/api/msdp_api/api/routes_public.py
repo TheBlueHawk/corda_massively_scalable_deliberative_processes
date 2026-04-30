@@ -55,6 +55,25 @@ async def list_topics(
     ]
 
 
+@router.get("/topics/{topic_id}", response_model=TopicListItemResponse)
+async def get_topic(
+    topic_id: UUID,
+    repository: Annotated[Repository, Depends(get_repository)],
+) -> TopicListItemResponse:
+    """Return a public topic by id."""
+    topic = await repository.get_topic(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found.")
+    return TopicListItemResponse(
+        id=topic.id,
+        title=topic.title,
+        description=topic.description,
+        status=topic.status,
+        closes_at=topic.closes_at,
+        created_at=topic.created_at,
+    )
+
+
 @router.get("/topics/{topic_id}/summaries", response_model=list[SummaryResponse])
 async def list_topic_summaries(
     topic_id: UUID,
