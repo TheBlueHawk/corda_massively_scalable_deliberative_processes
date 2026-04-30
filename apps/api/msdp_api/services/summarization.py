@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from anthropic import AsyncAnthropic
 
-from msdp_api.db.models import SummarizationResult, ThreadMessage
+from msdp_api.db.models import DueSummarizationResult, SummarizationResult, ThreadMessage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -83,3 +84,13 @@ class SummarizationService:
             await self._repository.upsert_summary(group.id, content)
             summarized_groups += 1
         return SummarizationResult(topic_id=topic_id, summarized_groups=summarized_groups)
+
+    async def summarize_due_topics(self, now: datetime | None = None) -> DueSummarizationResult:
+        """Summarize every active topic whose close time has passed."""
+        cutoff = now or datetime.now(UTC)
+        summarized_topics: list[SummarizationResult] = []
+        for topic in await self._repository.list_due_topics(cutoff):
+            result = await self.summarize_topic(topic.id)
+            await self._repository.close_topic(topic.id)
+            summarized_topics.append(result)
+        return DueSummarizationResult(summarized_topics=summarized_topics)

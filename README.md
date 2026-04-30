@@ -57,6 +57,7 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 - `POST /webhook/telegram`
 - `POST /admin/topics`
 - `POST /admin/summarize/{topic_id}`
+- `POST /admin/summarize-due`
 
 Admin endpoints require the `X-Admin-Key` header.
 

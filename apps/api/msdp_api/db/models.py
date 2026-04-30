@@ -134,3 +134,10 @@ class SummarizationResult(BaseModel):
     topic_id: UUID
     summarized_groups: int
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DueSummarizationResult(BaseModel):
+    """Admin response after summarizing all due topics."""
+
+    summarized_topics: list[SummarizationResult]
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -4,8 +4,9 @@ import pytest
 from msdp_api.core.config import get_settings
 
 
-def test_config_requires_required_environment_values(monkeypatch):
+def test_config_requires_required_environment_values(monkeypatch, tmp_path):
     get_settings.cache_clear()
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_SUPERGROUP_ID", raising=False)

@@ -31,6 +31,7 @@ Use the start command from [`railway.toml`](/Users/kevinblin/Code/corda_massivel
 - `TELEGRAM_BOT_USERNAME`
 - `GROUP_CAPACITY`
 - `SUMMARY_MODEL`
+- `SUMMARY_CHECK_INTERVAL_SECONDS`
 
 After deployment, register the Telegram webhook:
 
@@ -38,10 +39,11 @@ After deployment, register the Telegram webhook:
 curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=https://<railway-domain>/webhook/telegram"
 ```
 
-For scheduled summarization, configure a Railway cron job to call:
+The API process also runs an internal due-topic summarization loop. For an external fallback,
+configure a Railway cron job to call:
 
 ```bash
-curl -X POST -H "X-Admin-Key: ${X_ADMIN_KEY}" https://<railway-domain>/admin/summarize/<topic_id>
+curl -X POST -H "X-Admin-Key: ${X_ADMIN_KEY}" https://<railway-domain>/admin/summarize-due
 ```
 
 ## Vercel

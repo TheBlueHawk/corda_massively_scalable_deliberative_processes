@@ -31,6 +31,20 @@ class InMemoryRepository:
         """Return a topic by id."""
         return self.topics.get(topic_id)
 
+    async def list_due_topics(self, now: datetime) -> list[Topic]:
+        """Return active topics whose close time has passed."""
+        due = [
+            topic
+            for topic in self.topics.values()
+            if topic.status == TopicStatus.ACTIVE
+            and topic.closes_at is not None
+            and topic.closes_at <= now
+        ]
+        due.sort(
+            key=lambda item: (item.closes_at or datetime.max.replace(tzinfo=UTC), item.created_at)
+        )
+        return due
+
     async def create_topic(self, payload: TopicCreate) -> Topic:
         """Create and store a topic."""
         topic = Topic(
@@ -43,6 +57,15 @@ class InMemoryRepository:
         )
         self.topics[topic.id] = topic
         return topic
+
+    async def close_topic(self, topic_id: UUID) -> Topic | None:
+        """Mark a topic as closed."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        closed = topic.model_copy(update={"status": TopicStatus.CLOSED})
+        self.topics[topic_id] = closed
+        return closed
 
     async def list_groups_for_topic(self, topic_id: UUID) -> list[Group]:
         """Return groups belonging to the topic."""

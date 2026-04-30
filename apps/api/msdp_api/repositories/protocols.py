@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -16,7 +17,11 @@ class Repository(Protocol):
 
     async def get_topic(self, topic_id: UUID) -> Topic | None: ...
 
+    async def list_due_topics(self, now: datetime) -> Sequence[Topic]: ...
+
     async def create_topic(self, payload: TopicCreate) -> Topic: ...
+
+    async def close_topic(self, topic_id: UUID) -> Topic | None: ...
 
     async def list_groups_for_topic(self, topic_id: UUID) -> Sequence[Group]: ...
 

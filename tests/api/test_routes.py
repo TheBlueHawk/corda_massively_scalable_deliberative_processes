@@ -90,6 +90,42 @@ def test_admin_summarize_topic(client, repository):
     assert response.json()["summarized_groups"] == 1
 
 
+def test_admin_summarize_due_topics(client, repository):
+    due_topic = asyncio.run(
+        repository.create_topic(
+            TopicCreate(
+                title="Closed discussion",
+                closes_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+            ),
+        ),
+    )
+    future_topic = asyncio.run(
+        repository.create_topic(
+            TopicCreate(
+                title="Future discussion",
+                closes_at=datetime(3026, 4, 23, 10, 0, tzinfo=UTC),
+            ),
+        ),
+    )
+    asyncio.run(
+        repository.create_group(
+            topic_id=due_topic.id,
+            thread_id=1,
+            invite_link="https://example.com/1",
+            capacity=2,
+            telegram_topic_name="Group 1",
+        ),
+    )
+
+    response = client.post("/admin/summarize-due", headers={"X-Admin-Key": "admin-key"})
+
+    assert response.status_code == 200
+    assert len(response.json()["summarized_topics"]) == 1
+    assert response.json()["summarized_topics"][0]["topic_id"] == str(due_topic.id)
+    assert asyncio.run(repository.get_topic(due_topic.id)).status == "closed"
+    assert asyncio.run(repository.get_topic(future_topic.id)).status == "active"
+
+
 def test_get_topic_summaries(client, repository):
     topic = asyncio.run(repository.create_topic(TopicCreate(title="Food policy")))
     group = asyncio.run(

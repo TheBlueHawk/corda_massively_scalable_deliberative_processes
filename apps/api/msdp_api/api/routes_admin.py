@@ -12,7 +12,12 @@ from msdp_api.api.dependencies import (
     get_summarization_service,
     require_admin_key,
 )
-from msdp_api.db.models import SummarizationResult, TopicCreate, TopicCreatedResponse
+from msdp_api.db.models import (
+    DueSummarizationResult,
+    SummarizationResult,
+    TopicCreate,
+    TopicCreatedResponse,
+)
 from msdp_api.repositories.protocols import Repository
 from msdp_api.services.summarization import SummarizationService
 
@@ -30,6 +35,14 @@ async def create_topic(
     """Create a new topic."""
     topic = await repository.create_topic(payload)
     return TopicCreatedResponse(topic=topic)
+
+
+@router.post("/summarize-due", response_model=DueSummarizationResult)
+async def summarize_due_topics(
+    summarization_service: Annotated[SummarizationService, Depends(get_summarization_service)],
+) -> DueSummarizationResult:
+    """Trigger summarization for all due active topics."""
+    return await summarization_service.summarize_due_topics()
 
 
 @router.post("/summarize/{topic_id}", response_model=SummarizationResult)

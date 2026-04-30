@@ -91,6 +91,20 @@ class PostgresRepository:
             row = await conn.fetchrow(query, topic_id)
         return _row_to_topic(row) if row else None
 
+    async def list_due_topics(self, now: datetime) -> Sequence[Topic]:
+        """Return active topics whose close time has passed."""
+        query = """
+            SELECT id, title, description, status, closes_at, created_at
+            FROM topics
+            WHERE status = 'active'
+                AND closes_at IS NOT NULL
+                AND closes_at <= $1
+            ORDER BY closes_at ASC, created_at ASC
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, now)
+        return [_row_to_topic(row) for row in rows]
+
     async def create_topic(self, payload: TopicCreate) -> Topic:
         """Create a topic."""
         query = """
@@ -110,6 +124,18 @@ class PostgresRepository:
             msg = "Topic insert returned no row."
             raise RuntimeError(msg)
         return _row_to_topic(row)
+
+    async def close_topic(self, topic_id: UUID) -> Topic | None:
+        """Mark a topic as closed."""
+        query = """
+            UPDATE topics
+            SET status = 'closed'
+            WHERE id = $1
+            RETURNING id, title, description, status, closes_at, created_at
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, topic_id)
+        return _row_to_topic(row) if row else None
 
     async def list_groups_for_topic(self, topic_id: UUID) -> Sequence[Group]:
         """Return groups for a topic."""
