@@ -1,18 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
 
 import {
   AdminDashboard,
   AdminGroupOverview,
   AdminThreadMessage,
   AdminTopicOverview,
-  closeAdminTopic,
   createAdminTopic,
   fetchAdminDashboard,
   fetchAdminGroupMessages,
-  summarizeAdminTopic,
-  summarizeDueAdminTopics,
+  toTimezoneAwareIso,
   updateAdminTopic,
 } from "@/lib/api";
 
@@ -26,9 +24,26 @@ type TopicFormState = {
   closesAt: string;
 };
 
+type TopicEndFormState = {
+  closesAt: string;
+};
+
+type PendingConfirmation =
+  | {
+      kind: "create-topic";
+    }
+  | {
+      kind: "update-end-date";
+      topicId: string;
+    };
+
 const emptyTopicForm: TopicFormState = {
   title: "",
   description: "",
+  closesAt: "",
+};
+
+const emptyTopicEndForm: TopicEndFormState = {
   closesAt: "",
 };
 
@@ -52,15 +67,32 @@ function storeAdminKey(adminKey: string) {
   window.localStorage.setItem("corda_admin_key", adminKey);
 }
 
+function clearStoredAdminKey() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (typeof window.localStorage.removeItem !== "function") {
+    return;
+  }
+  window.localStorage.removeItem("corda_admin_key");
+}
+
 function toLocalInputValue(value: string | null): string {
   if (!value) {
     return "";
   }
-  return new Date(value).toISOString().slice(0, 16);
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
-function toApiDate(value: string): string | null {
-  return value ? new Date(value).toISOString() : null;
+function getCurrentLocalInputValue(): string {
+  return toLocalInputValue(new Date().toISOString());
+}
+
+function isPastLocalInputValue(value: string): boolean {
+  return value.length > 0 && new Date(value).getTime() < Date.now();
 }
 
 function formatDate(value: string | null): string {
@@ -68,8 +100,12 @@ function formatDate(value: string | null): string {
     return "Not set";
   }
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    timeZoneName: "short",
+    year: "numeric",
   }).format(new Date(value));
 }
 
@@ -77,12 +113,16 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   const [adminKey, setAdminKey] = useState(() => getStoredAdminKey() ?? "");
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [topicForm, setTopicForm] = useState<TopicFormState>(emptyTopicForm);
-  const [editForms, setEditForms] = useState<Record<string, TopicFormState>>({});
+  const [editForms, setEditForms] = useState<Record<string, TopicEndFormState>>({});
+  const [isCreateTopicOpen, setIsCreateTopicOpen] = useState(false);
+  const [editingEndTopicId, setEditingEndTopicId] = useState<string | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<AdminGroupOverview | null>(null);
   const [messages, setMessages] = useState<AdminThreadMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isLoggedIn = dashboard !== null && adminKey.length > 0;
 
   async function refresh(key = adminKey) {
     if (!key) {
@@ -98,8 +138,6 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           nextDashboard.topics.map((item) => [
             item.topic.id,
             {
-              title: item.topic.title,
-              description: item.topic.description ?? "",
               closesAt: toLocalInputValue(item.topic.closes_at),
             },
           ]),
@@ -127,8 +165,6 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
               nextDashboard.topics.map((item) => [
                 item.topic.id,
                 {
-                  title: item.topic.title,
-                  description: item.topic.description ?? "",
                   closesAt: toLocalInputValue(item.topic.closes_at),
                 },
               ]),
@@ -165,34 +201,43 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
     void refresh(adminKey);
   }
 
-  function createTopic(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function signOut() {
+    clearStoredAdminKey();
+    setAdminKey("");
+    setDashboard(null);
+    setEditForms({});
+    setSelectedGroup(null);
+    setMessages([]);
+    setNotice("Admin session cleared.");
+    setError(null);
+  }
+
+  function executeCreateTopic() {
+    if (isPastLocalInputValue(topicForm.closesAt)) {
+      setError("Deliberation end cannot be in the past.");
+      setTopicForm((current) => ({ ...current, closesAt: getCurrentLocalInputValue() }));
+      return;
+    }
     void runAction(
       () =>
         createAdminTopic(apiBaseUrl, adminKey, {
           title: topicForm.title,
           description: topicForm.description || null,
-          closes_at: toApiDate(topicForm.closesAt),
+          closes_at: toTimezoneAwareIso(topicForm.closesAt),
         }),
       "Topic created.",
     );
     setTopicForm(emptyTopicForm);
+    setIsCreateTopicOpen(false);
   }
 
-  function updateTopic(topicId: string) {
-    const form = editForms[topicId];
-    if (!form) {
+  function createTopic(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (activeTopics.length > 0) {
+      setPendingConfirmation({ kind: "create-topic" });
       return;
     }
-    void runAction(
-      () =>
-        updateAdminTopic(apiBaseUrl, adminKey, topicId, {
-          title: form.title,
-          description: form.description || null,
-          closes_at: toApiDate(form.closesAt),
-        }),
-      "Topic updated.",
-    );
+    executeCreateTopic();
   }
 
   async function loadMessages(group: AdminGroupOverview) {
@@ -218,31 +263,128 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
     }),
     { topics: 0, groups: 0, participants: 0, messages: 0, summaries: 0 },
   );
+  const activeTopics = dashboard?.topics.filter((item) => item.topic.status === "active") ?? [];
+  const pastTopics = dashboard?.topics.filter((item) => item.topic.status === "closed") ?? [];
+  const minimumEndDate = getCurrentLocalInputValue();
+
+  function executeUpdateTopic(topicId: string) {
+    const form = editForms[topicId];
+    if (!form) {
+      return;
+    }
+    if (isPastLocalInputValue(form.closesAt)) {
+      const currentMinimumEndDate = getCurrentLocalInputValue();
+      setError("Deliberation end cannot be in the past.");
+      setEditingEndTopicId(null);
+      setEditForms((current) => ({
+        ...current,
+        [topicId]: {
+          closesAt: currentMinimumEndDate,
+        },
+      }));
+      return;
+    }
+    void runAction(
+      () =>
+        updateAdminTopic(apiBaseUrl, adminKey, topicId, {
+          closes_at: toTimezoneAwareIso(form.closesAt),
+        }),
+      "Deliberation end updated.",
+    );
+    setEditingEndTopicId(null);
+  }
+
+  function requestUpdateTopic(topicId: string) {
+    const form = editForms[topicId];
+    const topic = dashboard?.topics.find((item) => item.topic.id === topicId)?.topic;
+    if (!form || !topic) {
+      return;
+    }
+    if (form.closesAt === toLocalInputValue(topic.closes_at)) {
+      setEditingEndTopicId(null);
+      return;
+    }
+    if (isPastLocalInputValue(form.closesAt)) {
+      const currentMinimumEndDate = getCurrentLocalInputValue();
+      setError("Deliberation end cannot be in the past.");
+      setEditingEndTopicId(null);
+      setEditForms((current) => ({
+        ...current,
+        [topicId]: {
+          closesAt: currentMinimumEndDate,
+        },
+      }));
+      return;
+    }
+    setPendingConfirmation({ kind: "update-end-date", topicId });
+  }
+
+  function cancelConfirmation() {
+    if (pendingConfirmation?.kind === "update-end-date") {
+      setEditForms((current) => {
+        const topic = dashboard?.topics.find(
+          (item) => item.topic.id === pendingConfirmation.topicId,
+        )?.topic;
+        if (!topic) {
+          return current;
+        }
+        return {
+          ...current,
+          [pendingConfirmation.topicId]: {
+            closesAt: toLocalInputValue(topic.closes_at),
+          },
+        };
+      });
+      setEditingEndTopicId(null);
+    }
+    setPendingConfirmation(null);
+  }
+
+  function confirmPendingAction() {
+    const confirmation = pendingConfirmation;
+    setPendingConfirmation(null);
+    if (!confirmation) {
+      return;
+    }
+    if (confirmation.kind === "create-topic") {
+      executeCreateTopic();
+      return;
+    }
+    executeUpdateTopic(confirmation.topicId);
+  }
 
   return (
     <main className="shell admin-shell">
-      <section className="admin-hero">
+      <header className="admin-topline">
         <p className="eyebrow">Admin dashboard</p>
-        <h1>Operate CORDA</h1>
-        <p className="lede">
-          Manage topics, trigger summaries, inspect Telegram groups, and verify captured
-          transcripts from one protected surface.
-        </p>
-      </section>
+        {isLoggedIn ? (
+          <button className="admin-sign-out-button" onClick={signOut} type="button">
+            Sign out
+          </button>
+        ) : null}
+      </header>
 
-      <form className="admin-keybar" onSubmit={saveKey}>
-        <label>
-          Admin key
-          <input
-            autoComplete="off"
-            onChange={(event) => setAdminKey(event.target.value)}
-            placeholder="Paste X_ADMIN_KEY"
-            type="password"
-            value={adminKey}
-          />
-        </label>
-        <button type="submit">Load dashboard</button>
-      </form>
+      {isLoggedIn ? (
+        <section className="admin-keybar" aria-label="Admin session">
+          <button onClick={() => void refresh()} type="button">
+            Refresh dashboard
+          </button>
+        </section>
+      ) : (
+        <form className="admin-keybar" onSubmit={saveKey}>
+          <label>
+            Admin key
+            <input
+              autoComplete="off"
+              onChange={(event) => setAdminKey(event.target.value)}
+              placeholder="Paste X_ADMIN_KEY"
+              type="password"
+              value={adminKey}
+            />
+          </label>
+          <button type="submit">Load dashboard</button>
+        </form>
+      )}
 
       {error ? <p className="admin-error">{error}</p> : null}
       {notice ? <p className="admin-notice">{notice}</p> : null}
@@ -258,81 +400,93 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
             <Metric label="Summaries" value={totals.summaries} />
           </section>
 
-          <section className="admin-panel">
-            <div>
-              <p className="eyebrow">Topic management</p>
-              <h2>Create a topic</h2>
-            </div>
-            <form className="admin-form" onSubmit={createTopic}>
-              <input
-                onChange={(event) =>
-                  setTopicForm((current) => ({ ...current, title: event.target.value }))
-                }
-                placeholder="Topic title"
-                required
-                value={topicForm.title}
-              />
-              <textarea
-                onChange={(event) =>
-                  setTopicForm((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                placeholder="Description"
-                value={topicForm.description}
-              />
-              <input
-                onChange={(event) =>
-                  setTopicForm((current) => ({ ...current, closesAt: event.target.value }))
-                }
-                type="datetime-local"
-                value={topicForm.closesAt}
-              />
-              <button type="submit">Create topic</button>
-            </form>
-            <button
-              className="admin-secondary-button"
-              onClick={() =>
-                void runAction(
-                  () => summarizeDueAdminTopics(apiBaseUrl, adminKey),
-                  "Due topics summarized.",
-                )
-              }
-              type="button"
-            >
-              Summarize due topics
-            </button>
-          </section>
-
           <section className="admin-topic-list">
-            {dashboard.topics.map((item) => (
+            {activeTopics.map((item) => (
               <TopicAdminCard
-                editForm={editForms[item.topic.id] ?? emptyTopicForm}
+                editForm={editForms[item.topic.id] ?? emptyTopicEndForm}
+                isEditingEnd={editingEndTopicId === item.topic.id}
                 item={item}
                 key={item.topic.id}
-                onClose={() =>
-                  void runAction(
-                    () => closeAdminTopic(apiBaseUrl, adminKey, item.topic.id),
-                    "Topic closed.",
-                  )
-                }
+                minimumEndDate={minimumEndDate}
                 onEditChange={(form) =>
                   setEditForms((current) => ({ ...current, [item.topic.id]: form }))
                 }
+                onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
                 onLoadMessages={loadMessages}
-                onSummarize={() =>
-                  void runAction(
-                    () => summarizeAdminTopic(apiBaseUrl, adminKey, item.topic.id),
-                    "Topic summarized.",
-                  )
-                }
-                onUpdate={() => updateTopic(item.topic.id)}
+                onUpdate={() => requestUpdateTopic(item.topic.id)}
               />
             ))}
+            <div className="admin-create-topic">
+              <button
+                className="admin-text-button"
+                onClick={() => setIsCreateTopicOpen((current) => !current)}
+                type="button"
+              >
+                + add topic
+              </button>
+              {isCreateTopicOpen ? (
+                <form className="admin-form admin-create-form" onSubmit={createTopic}>
+                  <input
+                    onChange={(event) =>
+                      setTopicForm((current) => ({ ...current, title: event.target.value }))
+                    }
+                    placeholder="Topic title"
+                    required
+                    value={topicForm.title}
+                  />
+                  <textarea
+                    onChange={(event) =>
+                      setTopicForm((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
+                    }
+                    placeholder="Description"
+                    value={topicForm.description}
+                  />
+                  <input
+                    onChange={(event) =>
+                      setTopicForm((current) => ({ ...current, closesAt: event.target.value }))
+                    }
+                    aria-label="Deliberation end in your timezone"
+                    min={minimumEndDate}
+                    type="datetime-local"
+                    value={topicForm.closesAt}
+                  />
+                  <button type="submit">Create</button>
+                </form>
+              ) : null}
+            </div>
+            {pastTopics.length > 0 ? (
+              <>
+                <div className="admin-topic-divider">
+                  <span>Past topics</span>
+                </div>
+                {pastTopics.map((item) => (
+                  <TopicAdminCard
+                    editForm={editForms[item.topic.id] ?? emptyTopicEndForm}
+                    isEditingEnd={false}
+                    item={item}
+                    key={item.topic.id}
+                    minimumEndDate={minimumEndDate}
+                    onEditChange={(form) =>
+                      setEditForms((current) => ({ ...current, [item.topic.id]: form }))
+                    }
+                    onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
+                    onLoadMessages={loadMessages}
+                    onUpdate={() => requestUpdateTopic(item.topic.id)}
+                  />
+                ))}
+              </>
+            ) : null}
           </section>
 
           <TranscriptPanel group={selectedGroup} messages={messages} />
+          <ConfirmationDialog
+            confirmation={pendingConfirmation}
+            onCancel={cancelConfirmation}
+            onConfirm={confirmPendingAction}
+          />
         </>
       ) : null}
     </main>
@@ -350,21 +504,30 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function TopicAdminCard({
   editForm,
+  isEditingEnd,
   item,
-  onClose,
+  minimumEndDate,
   onEditChange,
+  onEditEndStart,
   onLoadMessages,
-  onSummarize,
   onUpdate,
 }: {
-  editForm: TopicFormState;
+  editForm: TopicEndFormState;
+  isEditingEnd: boolean;
   item: AdminTopicOverview;
-  onClose: () => void;
-  onEditChange: (form: TopicFormState) => void;
+  minimumEndDate: string;
+  onEditChange: (form: TopicEndFormState) => void;
+  onEditEndStart: () => void;
   onLoadMessages: (group: AdminGroupOverview) => void;
-  onSummarize: () => void;
   onUpdate: () => void;
 }) {
+  function saveOnEnter(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+  }
+
   return (
     <article className="admin-topic-card">
       <div className="admin-topic-header">
@@ -372,43 +535,38 @@ function TopicAdminCard({
           <p className="eyebrow">{item.topic.status}</p>
           <h2>{item.topic.title}</h2>
           <p>{item.topic.description ?? "No description set."}</p>
-          <p className="admin-muted">Closes: {formatDate(item.topic.closes_at)}</p>
-        </div>
-        <div className="admin-actions">
-          <button onClick={onSummarize} type="button">
-            Summarize
-          </button>
-          {item.topic.status === "active" ? (
-            <button onClick={onClose} type="button">
-              Close
-            </button>
-          ) : null}
+          <div className="admin-end-date">
+            {item.topic.status === "closed" ? (
+              <p className="admin-muted">Ended: {formatDate(item.topic.closes_at)}</p>
+            ) : isEditingEnd ? (
+              <label>
+                Expected end
+                <input
+                  autoFocus
+                  min={minimumEndDate}
+                  onBlur={onUpdate}
+                  onChange={(event) => onEditChange({ ...editForm, closesAt: event.target.value })}
+                  onKeyDown={saveOnEnter}
+                  type="datetime-local"
+                  value={editForm.closesAt}
+                />
+              </label>
+            ) : (
+              <p className="admin-muted">
+                Expected end: {formatDate(item.topic.closes_at)}
+                <button
+                  aria-label={`Edit deliberation end for ${item.topic.title}`}
+                  className="admin-icon-button"
+                  onClick={onEditEndStart}
+                  type="button"
+                >
+                  edit
+                </button>
+              </p>
+            )}
+          </div>
         </div>
       </div>
-
-      <form className="admin-form admin-edit-form" onSubmit={(event) => event.preventDefault()}>
-        <input
-          onChange={(event) => onEditChange({ ...editForm, title: event.target.value })}
-          value={editForm.title}
-        />
-        <textarea
-          onChange={(event) =>
-            onEditChange({
-              ...editForm,
-              description: event.target.value,
-            })
-          }
-          value={editForm.description}
-        />
-        <input
-          onChange={(event) => onEditChange({ ...editForm, closesAt: event.target.value })}
-          type="datetime-local"
-          value={editForm.closesAt}
-        />
-        <button onClick={onUpdate} type="button">
-          Save edits
-        </button>
-      </form>
 
       <div className="admin-group-table">
         {item.groups.length === 0 ? (
@@ -460,5 +618,48 @@ function TranscriptPanel({
         </div>
       )}
     </section>
+  );
+}
+
+function ConfirmationDialog({
+  confirmation,
+  onCancel,
+  onConfirm,
+}: {
+  confirmation: PendingConfirmation | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!confirmation) {
+    return null;
+  }
+  const copy =
+    confirmation.kind === "create-topic"
+      ? {
+          body: "Creating a new topic will close the current active topic because only one topic can be active at a time.",
+          confirm: "Create topic",
+          title: "Replace active topic?",
+        }
+      : {
+          body: "Changing the deliberation end date affects when this topic closes and when automatic summarization runs.",
+          confirm: "Change date",
+          title: "Change end date?",
+        };
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation">
+      <section aria-modal="true" className="admin-modal" role="dialog">
+        <h2>{copy.title}</h2>
+        <p>{copy.body}</p>
+        <div className="admin-modal-actions">
+          <button className="admin-text-button" onClick={onCancel} type="button">
+            Cancel
+          </button>
+          <button onClick={onConfirm} type="button">
+            {copy.confirm}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

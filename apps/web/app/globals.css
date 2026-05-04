@@ -326,7 +326,6 @@ h1 {
   padding-top: 5rem;
 }
 
-.admin-hero,
 .admin-panel,
 .admin-topic-card,
 .admin-keybar {
@@ -335,19 +334,17 @@ h1 {
   backdrop-filter: blur(10px);
 }
 
-.admin-hero,
 .admin-panel,
 .admin-topic-card {
   padding: 1.5rem;
 }
 
-.admin-hero h1 {
-  max-width: 10ch;
+.admin-topline {
+  min-height: 1.25rem;
 }
 
 .admin-keybar,
 .admin-form,
-.admin-actions,
 .admin-metrics,
 .admin-topic-header {
   display: flex;
@@ -416,8 +413,32 @@ h1 {
   background: var(--accent);
 }
 
-.admin-secondary-button {
-  margin-top: 1rem;
+.admin-sign-out-button {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+}
+
+.admin-create-topic {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-text-button {
+  justify-self: start;
+  background: transparent !important;
+  color: var(--muted) !important;
+  padding: 0;
+  text-transform: lowercase;
+}
+
+.admin-text-button:hover {
+  color: var(--accent) !important;
+}
+
+.admin-create-form {
+  margin-top: 0;
 }
 
 .admin-metrics {
@@ -464,6 +485,113 @@ h1 {
 
 .admin-topic-header p {
   max-width: 44rem;
+}
+
+.admin-end-date {
+  margin-top: 1rem;
+}
+
+.admin-end-date p {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.admin-end-date label {
+  color: var(--muted);
+  display: grid;
+  gap: 0.35rem;
+  max-width: 17rem;
+}
+
+.admin-end-date input {
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  background: rgba(255, 252, 247, 0.74);
+  color: var(--ink);
+  font: inherit;
+  padding: 0.55rem;
+}
+
+.admin-icon-button {
+  align-items: center;
+  background: transparent !important;
+  border: 1px solid rgba(17, 17, 17, 0.16) !important;
+  color: var(--ink) !important;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  height: auto;
+  justify-content: center;
+  margin-left: 0.15rem;
+  padding: 0.18rem 0.35rem;
+  text-transform: lowercase;
+  width: auto;
+}
+
+.admin-icon-button:hover {
+  border-color: rgba(196, 73, 45, 0.4) !important;
+  color: var(--accent) !important;
+}
+
+.admin-topic-divider {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-family: Avenir, "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 800;
+  gap: 0.8rem;
+  letter-spacing: 0.12em;
+  margin: 1rem 0 0;
+  text-transform: uppercase;
+}
+
+.admin-topic-divider::after,
+.admin-topic-divider::before {
+  background: rgba(17, 17, 17, 0.14);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.admin-modal-backdrop {
+  align-items: center;
+  background: rgba(17, 17, 17, 0.28);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 20;
+}
+
+.admin-modal {
+  background: #fff8f0;
+  border: 1px solid rgba(17, 17, 17, 0.16);
+  box-shadow: 0 24px 80px rgba(17, 17, 17, 0.2);
+  max-width: 28rem;
+  padding: 1.5rem;
+  width: min(100%, 28rem);
+}
+
+.admin-modal h2 {
+  font-size: 1.8rem;
+  line-height: 1;
+  margin: 0;
+}
+
+.admin-modal p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 1rem 0 0;
+}
+
+.admin-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
 }
 
 .admin-group-table {
