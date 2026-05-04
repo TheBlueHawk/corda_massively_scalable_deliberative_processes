@@ -39,11 +39,12 @@ After deployment, register the Telegram webhook:
 curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=https://<railway-domain>/webhook/telegram"
 ```
 
-The API process also runs an internal due-topic summarization loop. For an external fallback,
-configure a Railway cron job to call:
+The API process also runs an internal job loop for closed-topic summaries and active-topic
+cross-pollination. For an external fallback, configure Railway cron jobs to call:
 
 ```bash
 curl -X POST -H "X-Admin-Key: ${X_ADMIN_KEY}" https://<railway-domain>/admin/summarize-due
+curl -X POST -H "X-Admin-Key: ${X_ADMIN_KEY}" https://<railway-domain>/admin/cross-pollinate-due
 ```
 
 ## Vercel

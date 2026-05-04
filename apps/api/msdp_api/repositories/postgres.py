@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import asyncpg
@@ -28,6 +28,8 @@ def _row_to_topic(row: asyncpg.Record) -> Topic:
         description=row["description"],
         status=TopicStatus(row["status"]),
         closes_at=row["closes_at"],
+        cross_pollination_interval_seconds=row["cross_pollination_interval_seconds"],
+        next_cross_pollination_at=row["next_cross_pollination_at"],
         created_at=row["created_at"],
     )
 
@@ -79,7 +81,15 @@ class PostgresRepository:
     async def get_active_topic(self) -> Topic | None:
         """Return the first active topic."""
         query = """
-            SELECT id, title, description, status, closes_at, created_at
+            SELECT
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
             FROM topics
             WHERE status = 'active'
             ORDER BY created_at ASC
@@ -92,7 +102,15 @@ class PostgresRepository:
     async def get_topic(self, topic_id: UUID) -> Topic | None:
         """Return a topic by id."""
         query = """
-            SELECT id, title, description, status, closes_at, created_at
+            SELECT
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
             FROM topics
             WHERE id = $1
         """
@@ -103,7 +121,15 @@ class PostgresRepository:
     async def list_topics(self) -> Sequence[Topic]:
         """Return all public topics, newest first."""
         query = """
-            SELECT id, title, description, status, closes_at, created_at
+            SELECT
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
             FROM topics
             ORDER BY created_at DESC
         """
@@ -114,7 +140,15 @@ class PostgresRepository:
     async def list_due_topics(self, now: datetime) -> Sequence[Topic]:
         """Return active topics whose close time has passed."""
         query = """
-            SELECT id, title, description, status, closes_at, created_at
+            SELECT
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
             FROM topics
             WHERE status = 'active'
                 AND closes_at IS NOT NULL
@@ -125,20 +159,61 @@ class PostgresRepository:
             rows = await conn.fetch(query, now)
         return [_row_to_topic(row) for row in rows]
 
+    async def list_cross_pollination_due_topics(self, now: datetime) -> Sequence[Topic]:
+        """Return active topics whose cross-pollination cadence is due."""
+        query = """
+            SELECT
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
+            FROM topics
+            WHERE status = 'active'
+                AND next_cross_pollination_at IS NOT NULL
+                AND next_cross_pollination_at <= $1
+            ORDER BY next_cross_pollination_at ASC, created_at ASC
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, now)
+        return [_row_to_topic(row) for row in rows]
+
     async def create_topic(self, payload: TopicCreate) -> Topic:
         """Create a topic."""
         query = """
-            INSERT INTO topics (title, description, status, closes_at, created_at)
-            VALUES ($1, $2, 'active', $3, $4)
-            RETURNING id, title, description, status, closes_at, created_at
+            INSERT INTO topics (
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
+            )
+            VALUES ($1, $2, 'active', $3, $4, $5, $6)
+            RETURNING
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
         """
+        now = datetime.now(UTC)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 query,
                 payload.title,
                 payload.description,
                 payload.closes_at,
-                datetime.now(UTC),
+                payload.cross_pollination_interval_seconds,
+                now + timedelta(seconds=payload.cross_pollination_interval_seconds),
+                now,
             )
         if row is None:
             msg = "Topic insert returned no row."
@@ -146,33 +221,100 @@ class PostgresRepository:
         return _row_to_topic(row)
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
-        """Update mutable topic fields."""
+        """Update a topic's deliberation end and derived status."""
         existing = await self.get_topic(topic_id)
         if existing is None:
             return None
+        next_closes_at = (
+            payload.closes_at if "closes_at" in payload.model_fields_set else existing.closes_at
+        )
+        now = datetime.now(UTC)
+        next_status = (
+            TopicStatus.ACTIVE
+            if next_closes_at is None or next_closes_at > now
+            else TopicStatus.CLOSED
+        )
+        next_interval = (
+            payload.cross_pollination_interval_seconds
+            if payload.cross_pollination_interval_seconds is not None
+            else existing.cross_pollination_interval_seconds
+        )
+        next_cross_pollination_at = existing.next_cross_pollination_at
+        if (
+            payload.cross_pollination_interval_seconds is not None
+            and next_status == TopicStatus.ACTIVE
+        ):
+            next_cross_pollination_at = now
+        if next_status == TopicStatus.CLOSED:
+            next_cross_pollination_at = None
         query = """
             UPDATE topics
-            SET title = $2, description = $3, closes_at = $4
+            SET
+                closes_at = $2,
+                status = $3,
+                cross_pollination_interval_seconds = $4,
+                next_cross_pollination_at = $5
             WHERE id = $1
-            RETURNING id, title, description, status, closes_at, created_at
+            RETURNING
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
         """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 query,
                 topic_id,
-                payload.title if payload.title is not None else existing.title,
-                (payload.description if payload.description is not None else existing.description),
-                payload.closes_at if payload.closes_at is not None else existing.closes_at,
+                next_closes_at,
+                next_status.value,
+                next_interval,
+                next_cross_pollination_at,
             )
+        return _row_to_topic(row) if row else None
+
+    async def schedule_next_cross_pollination(
+        self,
+        topic_id: UUID,
+        next_run_at: datetime | None,
+    ) -> Topic | None:
+        """Set the next cross-pollination run for a topic."""
+        query = """
+            UPDATE topics
+            SET next_cross_pollination_at = $2
+            WHERE id = $1
+            RETURNING
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, topic_id, next_run_at)
         return _row_to_topic(row) if row else None
 
     async def close_topic(self, topic_id: UUID) -> Topic | None:
         """Mark a topic as closed."""
         query = """
             UPDATE topics
-            SET status = 'closed'
+            SET status = 'closed', next_cross_pollination_at = NULL
             WHERE id = $1
-            RETURNING id, title, description, status, closes_at, created_at
+            RETURNING
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                created_at
         """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(query, topic_id)

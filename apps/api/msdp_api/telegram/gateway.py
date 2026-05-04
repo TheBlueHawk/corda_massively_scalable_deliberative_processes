@@ -30,6 +30,8 @@ class TelegramGateway(Protocol):
         topic_title: str,
     ) -> None: ...
 
+    async def send_moderator_comment(self, thread_id: int, text: str) -> None: ...
+
 
 def build_assignment_message(invite_link: str, thread_id: int, topic_title: str) -> str:
     """Build the direct Telegram welcome message for a group assignment."""
@@ -93,4 +95,12 @@ class TelegramBotGateway:
                 thread_id=thread_id,
                 topic_title=topic_title,
             ),
+        )
+
+    async def send_moderator_comment(self, thread_id: int, text: str) -> None:
+        """Post a moderator comment into a Telegram forum topic."""
+        await self._bot.send_message(
+            chat_id=self._supergroup_id,
+            message_thread_id=thread_id,
+            text=text,
         )

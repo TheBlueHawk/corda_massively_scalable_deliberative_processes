@@ -16,6 +16,7 @@ from msdp_api.telegram.gateway import CreatedTelegramGroup
 class FakeTelegramGateway:
     created_groups: list[CreatedTelegramGroup] = field(default_factory=list)
     sent_messages: list[dict[str, str | int]] = field(default_factory=list)
+    moderator_comments: list[dict[str, str | int]] = field(default_factory=list)
 
     async def create_group(self, ordinal: int, capacity: int) -> CreatedTelegramGroup:
         del capacity
@@ -43,6 +44,9 @@ class FakeTelegramGateway:
             },
         )
 
+    async def send_moderator_comment(self, thread_id: int, text: str) -> None:
+        self.moderator_comments.append({"thread_id": thread_id, "text": text})
+
 
 class FakeSummarizer(Summarizer):
     def __init__(self) -> None:
@@ -51,6 +55,18 @@ class FakeSummarizer(Summarizer):
     async def summarize(self, transcript: str) -> str:
         self.transcripts.append(transcript)
         return f"- Summary generated for transcript with {len(transcript.splitlines())} lines."
+
+    async def cross_pollinate(
+        self,
+        target_group_name: str,
+        target_summary: str,
+        other_group_summaries: str,
+    ) -> str:
+        del target_summary
+        return (
+            f"Other groups raised a related angle for {target_group_name}: "
+            f"{other_group_summaries.splitlines()[0]}"
+        )
 
 
 @pytest.fixture

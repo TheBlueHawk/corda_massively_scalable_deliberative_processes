@@ -10,6 +10,7 @@ import asyncpg
 from msdp_api.core.config import get_settings
 
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "sql" / "schema.sql"
+MIGRATIONS_PATH = Path(__file__).resolve().parents[1] / "sql" / "migrations"
 
 
 async def main() -> None:
@@ -19,6 +20,8 @@ async def main() -> None:
     conn = await asyncpg.connect(settings.database_url)
     try:
         await conn.execute(sql)
+        for migration_path in sorted(MIGRATIONS_PATH.glob("*.sql")):
+            await conn.execute(migration_path.read_text(encoding="utf-8"))
     finally:
         await conn.close()
 

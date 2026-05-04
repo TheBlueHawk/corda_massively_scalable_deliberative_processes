@@ -197,3 +197,103 @@ async def test_summarization_service_summarizes_due_topics_and_closes_them(
     assert result.summarized_topics[0].summarized_groups == 1
     assert (await repository.get_topic(due_topic.id)).status == TopicStatus.CLOSED
     assert (await repository.get_topic(future_topic.id)).status == TopicStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_cross_pollination_summarizes_and_posts_comments(
+    repository,
+    summarizer,
+    telegram_gateway,
+):
+    topic = await repository.create_topic(
+        TopicCreate(title="Shared learning", cross_pollination_interval_seconds=60),
+    )
+    first_group = await repository.create_group(
+        topic_id=topic.id,
+        thread_id=11,
+        invite_link="https://example.com/1",
+        capacity=2,
+        telegram_topic_name="Group 1",
+    )
+    second_group = await repository.create_group(
+        topic_id=topic.id,
+        thread_id=12,
+        invite_link="https://example.com/2",
+        capacity=2,
+        telegram_topic_name="Group 2",
+    )
+    for group, text in (
+        (first_group, "Transit access matters."),
+        (second_group, "Small businesses need delivery access."),
+    ):
+        await repository.store_thread_message(
+            ThreadMessage(
+                message_id=group.thread_id,
+                thread_id=group.thread_id,
+                group_id=group.id,
+                telegram_user_id=1,
+                username="speaker",
+                first_name="Speaker",
+                text=text,
+                sent_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+            ),
+        )
+    service = SummarizationService(repository, summarizer, telegram_gateway)
+
+    result = await service.cross_pollinate_topic(
+        topic.id, datetime(2026, 4, 23, 11, 0, tzinfo=UTC)
+    )
+
+    assert result.summarized_groups == 2
+    assert result.comments_posted == 2
+    assert result.next_cross_pollination_at == datetime(2026, 4, 23, 11, 1, tzinfo=UTC)
+    assert [item["thread_id"] for item in telegram_gateway.moderator_comments] == [11, 12]
+
+
+@pytest.mark.asyncio
+async def test_cross_pollination_due_topics_only_runs_due_active_topics(
+    repository,
+    summarizer,
+    telegram_gateway,
+):
+    due_topic = await repository.create_topic(
+        TopicCreate(title="Due", cross_pollination_interval_seconds=60),
+    )
+    future_topic = await repository.create_topic(
+        TopicCreate(title="Future", cross_pollination_interval_seconds=86_400),
+    )
+    closed_topic = await repository.create_topic(
+        TopicCreate(title="Closed", cross_pollination_interval_seconds=60),
+    )
+    await repository.schedule_next_cross_pollination(
+        due_topic.id,
+        datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+    )
+    await repository.schedule_next_cross_pollination(
+        future_topic.id,
+        datetime(2026, 4, 24, 10, 0, tzinfo=UTC),
+    )
+    await repository.close_topic(closed_topic.id)
+    for topic in (due_topic, future_topic):
+        await repository.create_group(
+            topic_id=topic.id,
+            thread_id=len(repository.groups) + 1,
+            invite_link="https://example.com/1",
+            capacity=2,
+            telegram_topic_name="Group 1",
+        )
+    service = SummarizationService(repository, summarizer, telegram_gateway)
+
+    result = await service.cross_pollinate_due_topics(datetime(2026, 4, 23, 11, 0, tzinfo=UTC))
+
+    assert [item.topic_id for item in result.cross_pollinated_topics] == [due_topic.id]
+    updated_due_topic = await repository.get_topic(due_topic.id)
+    assert updated_due_topic is not None
+    assert updated_due_topic.next_cross_pollination_at == datetime(
+        2026,
+        4,
+        23,
+        11,
+        1,
+        tzinfo=UTC,
+    )
