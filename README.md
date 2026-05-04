@@ -5,7 +5,7 @@ CORDA v1 is a two-app monorepo:
 - `apps/api`: FastAPI backend, Telegram webhook handling, transcript capture, and summarization
 - `apps/web`: Next.js website for the active topic and public results
 
-The platform routes Telegram users into least-full forum topics inside one Telegram supergroup, stores thread transcripts in Postgres, and publishes per-group summaries after the deliberation closes.
+The platform routes Telegram users into least-full forum topics inside one Telegram supergroup, stores thread transcripts in Postgres, publishes per-group summaries after the deliberation closes, and periodically cross-pollinates useful points between active groups.
 
 ## Architecture
 
@@ -64,8 +64,12 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 - `GET /admin/groups/{group_id}/messages`
 - `POST /admin/summarize/{topic_id}`
 - `POST /admin/summarize-due`
+- `POST /admin/cross-pollinate/{topic_id}`
+- `POST /admin/cross-pollinate-due`
 
 Admin endpoints require the `X-Admin-Key` header. The web admin dashboard is available at `/admin`.
+
+Topic creation and update payloads can set `cross_pollination_interval_seconds`; the default is one day. When a topic is due, the backend refreshes group summaries, compares them, and posts one moderator comment into each group thread.
 
 ## Quality gates
 

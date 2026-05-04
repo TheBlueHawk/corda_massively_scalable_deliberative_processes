@@ -6,7 +6,17 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+DEFAULT_CROSS_POLLINATION_INTERVAL_SECONDS = 86_400
+
+
+def _require_timezone(value: datetime | None) -> datetime | None:
+    """Require API datetimes to include timezone information."""
+    if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+        msg = "Datetime must include timezone information."
+        raise ValueError(msg)
+    return value
 
 
 class TopicStatus(StrEnum):
@@ -24,6 +34,8 @@ class Topic(BaseModel):
     description: str | None
     status: TopicStatus
     closes_at: datetime | None
+    cross_pollination_interval_seconds: int
+    next_cross_pollination_at: datetime | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -35,14 +47,21 @@ class TopicCreate(BaseModel):
     title: str = Field(min_length=1)
     description: str | None = None
     closes_at: datetime | None = None
+    cross_pollination_interval_seconds: int = Field(
+        default=DEFAULT_CROSS_POLLINATION_INTERVAL_SECONDS,
+        gt=0,
+    )
+
+    _validate_closes_at = field_validator("closes_at")(_require_timezone)
 
 
 class TopicUpdate(BaseModel):
-    """Payload used to update an existing deliberation topic."""
+    """Payload used to update an existing topic's editable scheduling fields."""
 
-    title: str | None = Field(default=None, min_length=1)
-    description: str | None = None
     closes_at: datetime | None = None
+    cross_pollination_interval_seconds: int | None = Field(default=None, gt=0)
+
+    _validate_closes_at = field_validator("closes_at")(_require_timezone)
 
 
 class Group(BaseModel):
@@ -122,6 +141,8 @@ class TopicListItemResponse(BaseModel):
     description: str | None
     status: TopicStatus
     closes_at: datetime | None
+    cross_pollination_interval_seconds: int
+    next_cross_pollination_at: datetime | None
     created_at: datetime
 
 
@@ -207,8 +228,25 @@ class SummarizationResult(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class CrossPollinationResult(BaseModel):
+    """Admin response after one topic cross-pollination run."""
+
+    topic_id: UUID
+    summarized_groups: int
+    comments_posted: int
+    next_cross_pollination_at: datetime | None
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class DueSummarizationResult(BaseModel):
     """Admin response after summarizing all due topics."""
 
     summarized_topics: list[SummarizationResult]
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DueCrossPollinationResult(BaseModel):
+    """Admin response after cross-pollinating all due topics."""
+
+    cross_pollinated_topics: list[CrossPollinationResult]
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

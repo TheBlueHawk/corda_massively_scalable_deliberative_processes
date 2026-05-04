@@ -22,10 +22,12 @@ type TopicFormState = {
   title: string;
   description: string;
   closesAt: string;
+  crossPollinationIntervalDays: string;
 };
 
 type TopicEndFormState = {
   closesAt: string;
+  crossPollinationIntervalDays: string;
 };
 
 type PendingConfirmation =
@@ -41,10 +43,12 @@ const emptyTopicForm: TopicFormState = {
   title: "",
   description: "",
   closesAt: "",
+  crossPollinationIntervalDays: "1",
 };
 
 const emptyTopicEndForm: TopicEndFormState = {
   closesAt: "",
+  crossPollinationIntervalDays: "1",
 };
 
 function getStoredAdminKey(): string | null {
@@ -109,6 +113,14 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
+function secondsToDaysInput(seconds: number): string {
+  return String(seconds / 86_400);
+}
+
+function daysInputToSeconds(value: string): number {
+  return Math.max(1, Math.round(Number(value) * 86_400));
+}
+
 export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   const [adminKey, setAdminKey] = useState(() => getStoredAdminKey() ?? "");
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
@@ -139,6 +151,9 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
             item.topic.id,
             {
               closesAt: toLocalInputValue(item.topic.closes_at),
+              crossPollinationIntervalDays: secondsToDaysInput(
+                item.topic.cross_pollination_interval_seconds,
+              ),
             },
           ]),
         ),
@@ -166,6 +181,9 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                 item.topic.id,
                 {
                   closesAt: toLocalInputValue(item.topic.closes_at),
+                  crossPollinationIntervalDays: secondsToDaysInput(
+                    item.topic.cross_pollination_interval_seconds,
+                  ),
                 },
               ]),
             ),
@@ -224,6 +242,9 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           title: topicForm.title,
           description: topicForm.description || null,
           closes_at: toTimezoneAwareIso(topicForm.closesAt),
+          cross_pollination_interval_seconds: daysInputToSeconds(
+            topicForm.crossPollinationIntervalDays,
+          ),
         }),
       "Topic created.",
     );
@@ -280,6 +301,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
         ...current,
         [topicId]: {
           closesAt: currentMinimumEndDate,
+          crossPollinationIntervalDays: form.crossPollinationIntervalDays,
         },
       }));
       return;
@@ -288,8 +310,11 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       () =>
         updateAdminTopic(apiBaseUrl, adminKey, topicId, {
           closes_at: toTimezoneAwareIso(form.closesAt),
+          cross_pollination_interval_seconds: daysInputToSeconds(
+            form.crossPollinationIntervalDays,
+          ),
         }),
-      "Deliberation end updated.",
+      "Topic schedule updated.",
     );
     setEditingEndTopicId(null);
   }
@@ -300,7 +325,11 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
     if (!form || !topic) {
       return;
     }
-    if (form.closesAt === toLocalInputValue(topic.closes_at)) {
+    if (
+      form.closesAt === toLocalInputValue(topic.closes_at) &&
+      daysInputToSeconds(form.crossPollinationIntervalDays) ===
+        topic.cross_pollination_interval_seconds
+    ) {
       setEditingEndTopicId(null);
       return;
     }
@@ -312,6 +341,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
         ...current,
         [topicId]: {
           closesAt: currentMinimumEndDate,
+          crossPollinationIntervalDays: form.crossPollinationIntervalDays,
         },
       }));
       return;
@@ -332,6 +362,9 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           ...current,
           [pendingConfirmation.topicId]: {
             closesAt: toLocalInputValue(topic.closes_at),
+            crossPollinationIntervalDays: secondsToDaysInput(
+              topic.cross_pollination_interval_seconds,
+            ),
           },
         };
       });
@@ -453,6 +486,21 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                     type="datetime-local"
                     value={topicForm.closesAt}
                   />
+                  <label>
+                    Cross-pollination interval (days)
+                    <input
+                      min="0.01"
+                      onChange={(event) =>
+                        setTopicForm((current) => ({
+                          ...current,
+                          crossPollinationIntervalDays: event.target.value,
+                        }))
+                      }
+                      step="0.01"
+                      type="number"
+                      value={topicForm.crossPollinationIntervalDays}
+                    />
+                  </label>
                   <button type="submit">Create</button>
                 </form>
               ) : null}
@@ -537,25 +585,51 @@ function TopicAdminCard({
           <p>{item.topic.description ?? "No description set."}</p>
           <div className="admin-end-date">
             {item.topic.status === "closed" ? (
-              <p className="admin-muted">Ended: {formatDate(item.topic.closes_at)}</p>
+              <p className="admin-muted">
+                Ended: {formatDate(item.topic.closes_at)} · Cross-pollination every{" "}
+                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s)
+              </p>
             ) : isEditingEnd ? (
-              <label>
-                Expected end
-                <input
-                  autoFocus
-                  min={minimumEndDate}
-                  onBlur={onUpdate}
-                  onChange={(event) => onEditChange({ ...editForm, closesAt: event.target.value })}
-                  onKeyDown={saveOnEnter}
-                  type="datetime-local"
-                  value={editForm.closesAt}
-                />
-              </label>
+              <div className="admin-inline-form">
+                <label>
+                  Expected end
+                  <input
+                    autoFocus
+                    min={minimumEndDate}
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, closesAt: event.target.value })
+                    }
+                    onKeyDown={saveOnEnter}
+                    type="datetime-local"
+                    value={editForm.closesAt}
+                  />
+                </label>
+                <label>
+                  Cross-pollination interval (days)
+                  <input
+                    min="0.01"
+                    onChange={(event) =>
+                      onEditChange({
+                        ...editForm,
+                        crossPollinationIntervalDays: event.target.value,
+                      })
+                    }
+                    onKeyDown={saveOnEnter}
+                    step="0.01"
+                    type="number"
+                    value={editForm.crossPollinationIntervalDays}
+                  />
+                </label>
+                <button onClick={onUpdate} type="button">
+                  Save
+                </button>
+              </div>
             ) : (
               <p className="admin-muted">
-                Expected end: {formatDate(item.topic.closes_at)}
+                Expected end: {formatDate(item.topic.closes_at)} · Cross-pollination every{" "}
+                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s)
                 <button
-                  aria-label={`Edit deliberation end for ${item.topic.title}`}
+                  aria-label={`Edit topic schedule for ${item.topic.title}`}
                   className="admin-icon-button"
                   onClick={onEditEndStart}
                   type="button"
@@ -642,8 +716,8 @@ function ConfirmationDialog({
         }
       : {
           body: "Changing the deliberation end date affects when this topic closes and when automatic summarization runs.",
-          confirm: "Change date",
-          title: "Change end date?",
+          confirm: "Change schedule",
+          title: "Change schedule?",
         };
 
   return (

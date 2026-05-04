@@ -53,6 +53,8 @@ describe("AdminDashboardView", () => {
               description: null,
               closes_at: "2026-05-10T10:00:00Z",
               status: "active",
+              cross_pollination_interval_seconds: 86400,
+              next_cross_pollination_at: "2026-05-02T10:00:00Z",
               created_at: "2026-05-01T10:00:00Z",
             },
             groups: [],
@@ -67,6 +69,8 @@ describe("AdminDashboardView", () => {
               description: null,
               closes_at: "2026-05-02T10:00:00Z",
               status: "closed",
+              cross_pollination_interval_seconds: 86400,
+              next_cross_pollination_at: null,
               created_at: "2026-04-01T10:00:00Z",
             },
             groups: [],
@@ -111,6 +115,8 @@ describe("AdminDashboardView", () => {
               description: null,
               closes_at: "2026-05-10T10:00:00Z",
               status: "active",
+              cross_pollination_interval_seconds: 86400,
+              next_cross_pollination_at: "2026-05-02T10:00:00Z",
               created_at: "2026-05-01T10:00:00Z",
             },
             groups: [],
@@ -131,11 +137,12 @@ describe("AdminDashboardView", () => {
 
     render(<AdminDashboardView apiBaseUrl="https://api.example.com" />);
 
-    const editButton = await screen.findByRole("button", { name: /Edit deliberation end/ });
+    const editButton = await screen.findByRole("button", { name: /Edit topic schedule/ });
 
     expect(screen.getByText("edit")).toBeInTheDocument();
     fireEvent.click(editButton);
     expect(screen.getByLabelText("Expected end")).toHaveAttribute("min");
+    expect(screen.getByLabelText(/Cross-pollination interval/)).toHaveValue(1);
   });
 
   it("asks for confirmation before changing an end date", async () => {
@@ -150,6 +157,8 @@ describe("AdminDashboardView", () => {
               description: null,
               closes_at: "2026-05-10T10:00:00Z",
               status: "active",
+              cross_pollination_interval_seconds: 86400,
+              next_cross_pollination_at: "2026-05-02T10:00:00Z",
               created_at: "2026-05-01T10:00:00Z",
             },
             groups: [],
@@ -170,13 +179,13 @@ describe("AdminDashboardView", () => {
 
     render(<AdminDashboardView apiBaseUrl="https://api.example.com" />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Edit deliberation end/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Edit topic schedule/ }));
     const endInput = screen.getByLabelText("Expected end");
     fireEvent.change(endInput, { target: { value: "2026-05-12T10:00" } });
-    fireEvent.blur(endInput);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(screen.getByRole("dialog")).toHaveTextContent("Change end date?");
-    expect(screen.getByRole("button", { name: "Change date" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Change schedule?");
+    expect(screen.getByRole("button", { name: "Change schedule" })).toBeInTheDocument();
   });
 
   it("asks for confirmation before creating a topic while one is active", async () => {
@@ -191,6 +200,8 @@ describe("AdminDashboardView", () => {
               description: null,
               closes_at: "2026-05-10T10:00:00Z",
               status: "active",
+              cross_pollination_interval_seconds: 86400,
+              next_cross_pollination_at: "2026-05-02T10:00:00Z",
               created_at: "2026-05-01T10:00:00Z",
             },
             groups: [],

@@ -17,6 +17,8 @@ from msdp_api.db.models import (
     AdminGroupOverview,
     AdminThreadMessageResponse,
     AdminTopicOverview,
+    CrossPollinationResult,
+    DueCrossPollinationResult,
     DueSummarizationResult,
     SummarizationResult,
     TopicCreate,
@@ -146,6 +148,23 @@ async def summarize_due_topics(
 ) -> DueSummarizationResult:
     """Trigger summarization for all due active topics."""
     return await summarization_service.summarize_due_topics()
+
+
+@router.post("/cross-pollinate-due", response_model=DueCrossPollinationResult)
+async def cross_pollinate_due_topics(
+    summarization_service: Annotated[SummarizationService, Depends(get_summarization_service)],
+) -> DueCrossPollinationResult:
+    """Trigger cross-pollination for all due active topics."""
+    return await summarization_service.cross_pollinate_due_topics()
+
+
+@router.post("/cross-pollinate/{topic_id}", response_model=CrossPollinationResult)
+async def cross_pollinate_topic(
+    topic_id: UUID,
+    summarization_service: Annotated[SummarizationService, Depends(get_summarization_service)],
+) -> CrossPollinationResult:
+    """Trigger cross-pollination for a topic."""
+    return await summarization_service.cross_pollinate_topic(topic_id)
 
 
 @router.post("/summarize/{topic_id}", response_model=SummarizationResult)

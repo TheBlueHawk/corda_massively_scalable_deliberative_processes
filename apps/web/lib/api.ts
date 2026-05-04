@@ -9,6 +9,8 @@ export type TopicStatus = "active" | "closed";
 
 export type TopicListItem = ActiveTopic & {
   status: TopicStatus;
+  cross_pollination_interval_seconds: number;
+  next_cross_pollination_at: string | null;
   created_at: string;
 };
 
@@ -126,10 +128,19 @@ export async function fetchAdminDashboard(
   return adminFetch<AdminDashboard>(apiBaseUrl, adminKey, "/admin/dashboard");
 }
 
+export function toTimezoneAwareIso(value: string): string | null {
+  return value ? new Date(value).toISOString() : null;
+}
+
 export async function createAdminTopic(
   apiBaseUrl: string,
   adminKey: string,
-  payload: { title: string; description?: string | null; closes_at?: string | null },
+  payload: {
+    title: string;
+    description?: string | null;
+    closes_at?: string | null;
+    cross_pollination_interval_seconds?: number;
+  },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, "/admin/topics", {
     method: "POST",
@@ -141,21 +152,11 @@ export async function updateAdminTopic(
   apiBaseUrl: string,
   adminKey: string,
   topicId: string,
-  payload: { title?: string; description?: string | null; closes_at?: string | null },
+  payload: { closes_at?: string | null; cross_pollination_interval_seconds?: number },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
-  });
-}
-
-export async function closeAdminTopic(
-  apiBaseUrl: string,
-  adminKey: string,
-  topicId: string,
-): Promise<void> {
-  await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}/close`, {
-    method: "POST",
   });
 }
 

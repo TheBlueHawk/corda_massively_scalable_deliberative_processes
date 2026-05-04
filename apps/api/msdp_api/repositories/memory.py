@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from msdp_api.db.models import (
@@ -60,35 +60,83 @@ class InMemoryRepository:
         )
         return due
 
+    async def list_cross_pollination_due_topics(self, now: datetime) -> list[Topic]:
+        """Return active topics whose cross-pollination cadence is due."""
+        due = [
+            topic
+            for topic in self.topics.values()
+            if topic.status == TopicStatus.ACTIVE
+            and topic.next_cross_pollination_at is not None
+            and topic.next_cross_pollination_at <= now
+        ]
+        due.sort(key=lambda item: (item.next_cross_pollination_at or now, item.created_at))
+        return due
+
     async def create_topic(self, payload: TopicCreate) -> Topic:
         """Create and store a topic."""
+        now = datetime.now(UTC)
         topic = Topic(
             id=uuid4(),
             title=payload.title,
             description=payload.description,
             status=TopicStatus.ACTIVE,
             closes_at=payload.closes_at,
-            created_at=datetime.now(UTC),
+            cross_pollination_interval_seconds=payload.cross_pollination_interval_seconds,
+            next_cross_pollination_at=now
+            + timedelta(seconds=payload.cross_pollination_interval_seconds),
+            created_at=now,
         )
         self.topics[topic.id] = topic
         return topic
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
-        """Update mutable topic fields."""
+        """Update a topic's deliberation end and derived status."""
         topic = self.topics.get(topic_id)
         if topic is None:
             return None
+        next_closes_at = (
+            payload.closes_at if "closes_at" in payload.model_fields_set else topic.closes_at
+        )
+        now = datetime.now(UTC)
+        next_status = (
+            TopicStatus.ACTIVE
+            if next_closes_at is None or next_closes_at > now
+            else TopicStatus.CLOSED
+        )
+        next_interval = (
+            payload.cross_pollination_interval_seconds
+            if payload.cross_pollination_interval_seconds is not None
+            else topic.cross_pollination_interval_seconds
+        )
+        next_cross_pollination_at = topic.next_cross_pollination_at
+        if (
+            payload.cross_pollination_interval_seconds is not None
+            and next_status == TopicStatus.ACTIVE
+        ):
+            next_cross_pollination_at = now
+        if next_status == TopicStatus.CLOSED:
+            next_cross_pollination_at = None
         updated = topic.model_copy(
             update={
-                "title": payload.title if payload.title is not None else topic.title,
-                "description": (
-                    payload.description if payload.description is not None else topic.description
-                ),
-                "closes_at": payload.closes_at
-                if payload.closes_at is not None
-                else topic.closes_at,
+                "closes_at": next_closes_at,
+                "status": next_status,
+                "cross_pollination_interval_seconds": next_interval,
+                "next_cross_pollination_at": next_cross_pollination_at,
             },
         )
+        self.topics[topic_id] = updated
+        return updated
+
+    async def schedule_next_cross_pollination(
+        self,
+        topic_id: UUID,
+        next_run_at: datetime | None,
+    ) -> Topic | None:
+        """Set the next cross-pollination run for a topic."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        updated = topic.model_copy(update={"next_cross_pollination_at": next_run_at})
         self.topics[topic_id] = updated
         return updated
 
@@ -97,7 +145,9 @@ class InMemoryRepository:
         topic = self.topics.get(topic_id)
         if topic is None:
             return None
-        closed = topic.model_copy(update={"status": TopicStatus.CLOSED})
+        closed = topic.model_copy(
+            update={"status": TopicStatus.CLOSED, "next_cross_pollination_at": None},
+        )
         self.topics[topic_id] = closed
         return closed
 

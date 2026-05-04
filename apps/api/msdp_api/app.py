@@ -34,12 +34,13 @@ async def _run_due_summarization_loop(
     summarization_service: SummarizationService,
     interval_seconds: int,
 ) -> None:
-    """Periodically summarize topics whose close time has passed."""
+    """Periodically run due close summaries and active-topic cross-pollination."""
     while True:
         try:
             await summarization_service.summarize_due_topics()
+            await summarization_service.cross_pollinate_due_topics()
         except Exception:
-            logger.exception("Failed to summarize due topics.")
+            logger.exception("Failed to run due summarization jobs.")
         await asyncio.sleep(interval_seconds)
 
 
@@ -64,6 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             api_key=settings.anthropic_api_key,
             model=settings.summary_model,
         ),
+        telegram_gateway=telegram_gateway,
     )
     app.state.settings = settings
     app.state.pool = pool
@@ -133,6 +135,7 @@ def create_app(
         app.state.summarization_service = SummarizationService(
             repository=runtime_repository,
             summarizer=runtime_summarizer,
+            telegram_gateway=runtime_gateway,
         )
         app.state.telegram_webhook_service = TelegramWebhookService(
             repository=runtime_repository,

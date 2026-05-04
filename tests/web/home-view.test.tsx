@@ -13,6 +13,8 @@ describe("HomeView", () => {
             description: "Discuss long-term climate measures.",
             status: "active",
             closes_at: "2026-04-23T10:00:00Z",
+            cross_pollination_interval_seconds: 86400,
+            next_cross_pollination_at: "2026-04-21T10:00:00Z",
             created_at: "2026-04-20T10:00:00Z",
           },
         ]}
@@ -47,6 +49,8 @@ describe("HomeView", () => {
             description: "Should cities restrict cars?",
             status: "closed",
             closes_at: "2026-04-27T15:00:00Z",
+            cross_pollination_interval_seconds: 86400,
+            next_cross_pollination_at: null,
             created_at: "2026-04-20T10:00:00Z",
           },
         ]}
