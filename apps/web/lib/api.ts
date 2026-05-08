@@ -152,7 +152,12 @@ export async function updateAdminTopic(
   apiBaseUrl: string,
   adminKey: string,
   topicId: string,
-  payload: { closes_at?: string | null; cross_pollination_interval_seconds?: number },
+  payload: {
+    title?: string;
+    description?: string | null;
+    closes_at?: string | null;
+    cross_pollination_interval_seconds?: number;
+  },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}`, {
     method: "PATCH",

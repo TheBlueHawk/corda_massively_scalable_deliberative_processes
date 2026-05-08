@@ -221,13 +221,16 @@ class PostgresRepository:
         return _row_to_topic(row)
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
-        """Update a topic's deliberation end and derived status."""
+        """Update a topic's editable fields and derived status."""
         existing = await self.get_topic(topic_id)
         if existing is None:
             return None
-        next_closes_at = (
-            payload.closes_at if "closes_at" in payload.model_fields_set else existing.closes_at
+        fields_set = payload.model_fields_set
+        next_title = payload.title if "title" in fields_set else existing.title
+        next_description = (
+            payload.description if "description" in fields_set else existing.description
         )
+        next_closes_at = payload.closes_at if "closes_at" in fields_set else existing.closes_at
         now = datetime.now(UTC)
         next_status = (
             TopicStatus.ACTIVE
@@ -250,10 +253,12 @@ class PostgresRepository:
         query = """
             UPDATE topics
             SET
-                closes_at = $2,
-                status = $3,
-                cross_pollination_interval_seconds = $4,
-                next_cross_pollination_at = $5
+                title = $2,
+                description = $3,
+                closes_at = $4,
+                status = $5,
+                cross_pollination_interval_seconds = $6,
+                next_cross_pollination_at = $7
             WHERE id = $1
             RETURNING
                 id,
@@ -269,6 +274,8 @@ class PostgresRepository:
             row = await conn.fetchrow(
                 query,
                 topic_id,
+                next_title,
+                next_description,
                 next_closes_at,
                 next_status.value,
                 next_interval,

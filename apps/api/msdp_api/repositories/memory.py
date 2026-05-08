@@ -90,13 +90,16 @@ class InMemoryRepository:
         return topic
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
-        """Update a topic's deliberation end and derived status."""
+        """Update a topic's editable fields and derived status."""
         topic = self.topics.get(topic_id)
         if topic is None:
             return None
-        next_closes_at = (
-            payload.closes_at if "closes_at" in payload.model_fields_set else topic.closes_at
+        fields_set = payload.model_fields_set
+        next_title = payload.title if "title" in fields_set else topic.title
+        next_description = (
+            payload.description if "description" in fields_set else topic.description
         )
+        next_closes_at = payload.closes_at if "closes_at" in fields_set else topic.closes_at
         now = datetime.now(UTC)
         next_status = (
             TopicStatus.ACTIVE
@@ -118,6 +121,8 @@ class InMemoryRepository:
             next_cross_pollination_at = None
         updated = topic.model_copy(
             update={
+                "title": next_title,
+                "description": next_description,
                 "closes_at": next_closes_at,
                 "status": next_status,
                 "cross_pollination_interval_seconds": next_interval,

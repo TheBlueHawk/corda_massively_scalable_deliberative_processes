@@ -56,8 +56,10 @@ class TopicCreate(BaseModel):
 
 
 class TopicUpdate(BaseModel):
-    """Payload used to update an existing topic's editable scheduling fields."""
+    """Payload used to update an existing topic's editable fields."""
 
+    title: str | None = Field(default=None, min_length=1)
+    description: str | None = None
     closes_at: datetime | None = None
     cross_pollination_interval_seconds: int | None = Field(default=None, gt=0)
 

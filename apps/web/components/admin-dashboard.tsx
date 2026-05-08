@@ -26,6 +26,8 @@ type TopicFormState = {
 };
 
 type TopicEndFormState = {
+  title: string;
+  description: string;
   closesAt: string;
   crossPollinationIntervalDays: string;
 };
@@ -47,6 +49,8 @@ const emptyTopicForm: TopicFormState = {
 };
 
 const emptyTopicEndForm: TopicEndFormState = {
+  title: "",
+  description: "",
   closesAt: "",
   crossPollinationIntervalDays: "1",
 };
@@ -150,6 +154,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           nextDashboard.topics.map((item) => [
             item.topic.id,
             {
+              title: item.topic.title,
+              description: item.topic.description ?? "",
               closesAt: toLocalInputValue(item.topic.closes_at),
               crossPollinationIntervalDays: secondsToDaysInput(
                 item.topic.cross_pollination_interval_seconds,
@@ -180,6 +186,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
               nextDashboard.topics.map((item) => [
                 item.topic.id,
                 {
+                  title: item.topic.title,
+                  description: item.topic.description ?? "",
                   closesAt: toLocalInputValue(item.topic.closes_at),
                   crossPollinationIntervalDays: secondsToDaysInput(
                     item.topic.cross_pollination_interval_seconds,
@@ -299,22 +307,27 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       setEditingEndTopicId(null);
       setEditForms((current) => ({
         ...current,
-        [topicId]: {
-          closesAt: currentMinimumEndDate,
-          crossPollinationIntervalDays: form.crossPollinationIntervalDays,
-        },
+        [topicId]: { ...form, closesAt: currentMinimumEndDate },
       }));
       return;
     }
+    const trimmedTitle = form.title.trim();
+    if (!trimmedTitle) {
+      setError("Topic title cannot be empty.");
+      return;
+    }
+    const trimmedDescription = form.description.trim();
     void runAction(
       () =>
         updateAdminTopic(apiBaseUrl, adminKey, topicId, {
+          title: trimmedTitle,
+          description: trimmedDescription ? trimmedDescription : null,
           closes_at: toTimezoneAwareIso(form.closesAt),
           cross_pollination_interval_seconds: daysInputToSeconds(
             form.crossPollinationIntervalDays,
           ),
         }),
-      "Topic schedule updated.",
+      "Topic updated.",
     );
     setEditingEndTopicId(null);
   }
@@ -326,6 +339,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       return;
     }
     if (
+      form.title.trim() === topic.title &&
+      form.description.trim() === (topic.description ?? "") &&
       form.closesAt === toLocalInputValue(topic.closes_at) &&
       daysInputToSeconds(form.crossPollinationIntervalDays) ===
         topic.cross_pollination_interval_seconds
@@ -339,10 +354,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       setEditingEndTopicId(null);
       setEditForms((current) => ({
         ...current,
-        [topicId]: {
-          closesAt: currentMinimumEndDate,
-          crossPollinationIntervalDays: form.crossPollinationIntervalDays,
-        },
+        [topicId]: { ...form, closesAt: currentMinimumEndDate },
       }));
       return;
     }
@@ -361,6 +373,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
         return {
           ...current,
           [pendingConfirmation.topicId]: {
+            title: topic.title,
+            description: topic.description ?? "",
             closesAt: toLocalInputValue(topic.closes_at),
             crossPollinationIntervalDays: secondsToDaysInput(
               topic.cross_pollination_interval_seconds,
@@ -581,8 +595,12 @@ function TopicAdminCard({
       <div className="admin-topic-header">
         <div>
           <p className="eyebrow">{item.topic.status}</p>
-          <h2>{item.topic.title}</h2>
-          <p>{item.topic.description ?? "No description set."}</p>
+          {isEditingEnd ? null : (
+            <>
+              <h2>{item.topic.title}</h2>
+              <p>{item.topic.description ?? "No description set."}</p>
+            </>
+          )}
           <div className="admin-end-date">
             {item.topic.status === "closed" ? (
               <p className="admin-muted">
@@ -591,6 +609,27 @@ function TopicAdminCard({
               </p>
             ) : isEditingEnd ? (
               <div className="admin-inline-form">
+                <label>
+                  Title
+                  <input
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, title: event.target.value })
+                    }
+                    onKeyDown={saveOnEnter}
+                    type="text"
+                    value={editForm.title}
+                  />
+                </label>
+                <label>
+                  Description
+                  <textarea
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, description: event.target.value })
+                    }
+                    placeholder="Add a curiosity hook — one detail that makes participants want to weigh in."
+                    value={editForm.description}
+                  />
+                </label>
                 <label>
                   Expected end
                   <input
@@ -715,9 +754,9 @@ function ConfirmationDialog({
           title: "Replace active topic?",
         }
       : {
-          body: "Changing the deliberation end date affects when this topic closes and when automatic summarization runs.",
-          confirm: "Change schedule",
-          title: "Change schedule?",
+          body: "Updating this topic will change what participants see immediately, including any new deliberation end date or summarization cadence.",
+          confirm: "Update topic",
+          title: "Update topic?",
         };
 
   return (
