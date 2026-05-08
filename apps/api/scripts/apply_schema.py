@@ -8,20 +8,19 @@ from pathlib import Path
 import asyncpg
 
 from msdp_api.core.config import get_settings
+from msdp_api.db.migrations import apply_migrations
 
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "sql" / "schema.sql"
-MIGRATIONS_PATH = Path(__file__).resolve().parents[1] / "sql" / "migrations"
 
 
 async def main() -> None:
     """Apply the SQL schema file to the configured database."""
     settings = get_settings()
-    sql = SCHEMA_PATH.read_text(encoding="utf-8")
     conn = await asyncpg.connect(settings.database_url)
     try:
-        await conn.execute(sql)
-        for migration_path in sorted(MIGRATIONS_PATH.glob("*.sql")):
-            await conn.execute(migration_path.read_text(encoding="utf-8"))
+        if SCHEMA_PATH.exists():
+            await conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+        await apply_migrations(conn)
     finally:
         await conn.close()
 

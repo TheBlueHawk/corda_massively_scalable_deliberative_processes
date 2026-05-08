@@ -15,6 +15,7 @@ from msdp_api.api.routes_admin import router as admin_router
 from msdp_api.api.routes_public import router as public_router
 from msdp_api.api.routes_webhook import router as webhook_router
 from msdp_api.core.config import Settings, get_settings
+from msdp_api.db.migrations import apply_migrations
 from msdp_api.repositories.memory import InMemoryRepository
 from msdp_api.repositories.postgres import PostgresRepository
 from msdp_api.services.group_assignment import GroupAssignmentService
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Create runtime resources for the application."""
     settings = get_settings()
     pool = await asyncpg.create_pool(settings.database_url)
+    await apply_migrations(pool)
     repository = PostgresRepository(pool)
     telegram_gateway = TelegramBotGateway(
         token=settings.telegram_bot_token,
