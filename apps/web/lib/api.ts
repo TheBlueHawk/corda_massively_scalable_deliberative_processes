@@ -12,6 +12,7 @@ export type TopicListItem = ActiveTopic & {
   cross_pollination_interval_seconds: number;
   next_cross_pollination_at: string | null;
   group_capacity: number;
+  seed_bullets?: string[];
   created_at: string;
 };
 
@@ -142,6 +143,7 @@ export async function createAdminTopic(
     closes_at?: string | null;
     cross_pollination_interval_seconds?: number;
     group_capacity?: number;
+    seed_bullets?: string[];
   },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, "/admin/topics", {
@@ -160,6 +162,7 @@ export async function updateAdminTopic(
     closes_at?: string | null;
     cross_pollination_interval_seconds?: number;
     group_capacity?: number;
+    seed_bullets?: string[];
   },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}`, {

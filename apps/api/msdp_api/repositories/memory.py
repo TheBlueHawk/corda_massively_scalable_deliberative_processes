@@ -85,6 +85,7 @@ class InMemoryRepository:
             next_cross_pollination_at=now
             + timedelta(seconds=payload.cross_pollination_interval_seconds),
             group_capacity=payload.group_capacity,
+            seed_bullets=list(payload.seed_bullets),
             created_at=now,
         )
         self.topics[topic.id] = topic
@@ -123,6 +124,9 @@ class InMemoryRepository:
         next_group_capacity = (
             payload.group_capacity if payload.group_capacity is not None else topic.group_capacity
         )
+        next_seed_bullets = (
+            list(payload.seed_bullets) if payload.seed_bullets is not None else topic.seed_bullets
+        )
         updated = topic.model_copy(
             update={
                 "title": next_title,
@@ -132,6 +136,7 @@ class InMemoryRepository:
                 "cross_pollination_interval_seconds": next_interval,
                 "next_cross_pollination_at": next_cross_pollination_at,
                 "group_capacity": next_group_capacity,
+                "seed_bullets": next_seed_bullets,
             },
         )
         self.topics[topic_id] = updated

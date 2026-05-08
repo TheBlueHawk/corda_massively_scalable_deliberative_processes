@@ -13,6 +13,12 @@ if TYPE_CHECKING:
     from msdp_api.telegram.gateway import TelegramGateway
 
 
+def _build_seed_message(bullets: list[str]) -> str:
+    """Format seed talking points as a moderator comment posted into a new group."""
+    rendered = "\n".join(f"• {bullet}" for bullet in bullets)
+    return f"To get the conversation started, here are a few angles to weigh in on:\n\n{rendered}"
+
+
 class GroupAssignmentService:
     """Assign users to the least-full available group for a topic."""
 
@@ -53,6 +59,12 @@ class GroupAssignmentService:
                 telegram_topic_name=telegram_group.topic_name,
             )
             was_created = True
+            if topic.seed_bullets:
+                seed_message = _build_seed_message(topic.seed_bullets)
+                await self._telegram_gateway.send_moderator_comment(
+                    thread_id=group.thread_id,
+                    text=seed_message,
+                )
 
         created_membership = await self._repository.create_membership(
             telegram_user_id=user.telegram_user_id,

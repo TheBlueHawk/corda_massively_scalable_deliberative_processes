@@ -24,6 +24,7 @@ type TopicFormState = {
   closesAt: string;
   crossPollinationIntervalDays: string;
   groupCapacity: string;
+  seedBullets: string;
 };
 
 type TopicEndFormState = {
@@ -32,6 +33,7 @@ type TopicEndFormState = {
   closesAt: string;
   crossPollinationIntervalDays: string;
   groupCapacity: string;
+  seedBullets: string;
 };
 
 type PendingConfirmation =
@@ -51,6 +53,7 @@ const emptyTopicForm: TopicFormState = {
   closesAt: "",
   crossPollinationIntervalDays: "1",
   groupCapacity: DEFAULT_GROUP_CAPACITY,
+  seedBullets: "",
 };
 
 const emptyTopicEndForm: TopicEndFormState = {
@@ -59,7 +62,15 @@ const emptyTopicEndForm: TopicEndFormState = {
   closesAt: "",
   crossPollinationIntervalDays: "1",
   groupCapacity: DEFAULT_GROUP_CAPACITY,
+  seedBullets: "",
 };
+
+function parseSeedBullets(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.replace(/^[-•·\s]+/, "").trim())
+    .filter((line) => line.length > 0);
+}
 
 function getStoredAdminKey(): string | null {
   if (typeof window === "undefined") {
@@ -172,6 +183,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                 item.topic.cross_pollination_interval_seconds,
               ),
               groupCapacity: String(item.topic.group_capacity),
+              seedBullets: (item.topic.seed_bullets ?? []).join("\n"),
             },
           ]),
         ),
@@ -205,6 +217,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                     item.topic.cross_pollination_interval_seconds,
                   ),
                   groupCapacity: String(item.topic.group_capacity),
+                  seedBullets: (item.topic.seed_bullets ?? []).join("\n"),
                 },
               ]),
             ),
@@ -267,6 +280,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
             topicForm.crossPollinationIntervalDays,
           ),
           group_capacity: parseGroupCapacity(topicForm.groupCapacity),
+          seed_bullets: parseSeedBullets(topicForm.seedBullets),
         }),
       "Topic created.",
     );
@@ -341,6 +355,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
             form.crossPollinationIntervalDays,
           ),
           group_capacity: parseGroupCapacity(form.groupCapacity),
+          seed_bullets: parseSeedBullets(form.seedBullets),
         }),
       "Topic updated.",
     );
@@ -359,7 +374,9 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       form.closesAt === toLocalInputValue(topic.closes_at) &&
       daysInputToSeconds(form.crossPollinationIntervalDays) ===
         topic.cross_pollination_interval_seconds &&
-      parseGroupCapacity(form.groupCapacity) === topic.group_capacity
+      parseGroupCapacity(form.groupCapacity) === topic.group_capacity &&
+      JSON.stringify(parseSeedBullets(form.seedBullets)) ===
+        JSON.stringify(topic.seed_bullets ?? [])
     ) {
       setEditingEndTopicId(null);
       return;
@@ -396,6 +413,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
               topic.cross_pollination_interval_seconds,
             ),
             groupCapacity: String(topic.group_capacity),
+            seedBullets: (topic.seed_bullets ?? []).join("\n"),
           },
         };
       });
@@ -545,6 +563,23 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                       step="1"
                       type="number"
                       value={topicForm.groupCapacity}
+                    />
+                  </label>
+                  <label>
+                    Seed bullets (one per line)
+                    <textarea
+                      onChange={(event) =>
+                        setTopicForm((current) => ({
+                          ...current,
+                          seedBullets: event.target.value,
+                        }))
+                      }
+                      placeholder={
+                        "Pro: faster decisions\nPro: clearer accountability\n" +
+                        "Con: less deliberation\nCon: minority voices drowned out"
+                      }
+                      rows={4}
+                      value={topicForm.seedBullets}
                     />
                   </label>
                   <button type="submit">Create</button>
@@ -703,6 +738,17 @@ function TopicAdminCard({
                     step="1"
                     type="number"
                     value={editForm.groupCapacity}
+                  />
+                </label>
+                <label>
+                  Seed bullets (one per line)
+                  <textarea
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, seedBullets: event.target.value })
+                    }
+                    placeholder="Pro/con prompts posted into each new group when it spins up."
+                    rows={4}
+                    value={editForm.seedBullets}
                   />
                 </label>
                 <button onClick={onUpdate} type="button">

@@ -31,6 +31,7 @@ def _row_to_topic(row: asyncpg.Record) -> Topic:
         cross_pollination_interval_seconds=row["cross_pollination_interval_seconds"],
         next_cross_pollination_at=row["next_cross_pollination_at"],
         group_capacity=row["group_capacity"],
+        seed_bullets=list(row["seed_bullets"]),
         created_at=row["created_at"],
     )
 
@@ -91,6 +92,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -113,6 +115,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
             FROM topics
             WHERE id = $1
@@ -133,6 +136,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
             FROM topics
             ORDER BY created_at DESC
@@ -153,6 +157,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -176,6 +181,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -198,9 +204,10 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
             )
-            VALUES ($1, $2, 'active', $3, $4, $5, $6, $7)
+            VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8)
             RETURNING
                 id,
                 title,
@@ -210,6 +217,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
         """
         now = datetime.now(UTC)
@@ -222,6 +230,7 @@ class PostgresRepository:
                 payload.cross_pollination_interval_seconds,
                 now + timedelta(seconds=payload.cross_pollination_interval_seconds),
                 payload.group_capacity,
+                payload.seed_bullets,
                 now,
             )
         if row is None:
@@ -264,6 +273,9 @@ class PostgresRepository:
             if payload.group_capacity is not None
             else existing.group_capacity
         )
+        next_seed_bullets = (
+            payload.seed_bullets if payload.seed_bullets is not None else existing.seed_bullets
+        )
         query = """
             UPDATE topics
             SET
@@ -273,7 +285,8 @@ class PostgresRepository:
                 status = $5,
                 cross_pollination_interval_seconds = $6,
                 next_cross_pollination_at = $7,
-                group_capacity = $8
+                group_capacity = $8,
+                seed_bullets = $9
             WHERE id = $1
             RETURNING
                 id,
@@ -284,6 +297,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
         """
         async with self._pool.acquire() as conn:
@@ -297,6 +311,7 @@ class PostgresRepository:
                 next_interval,
                 next_cross_pollination_at,
                 next_group_capacity,
+                next_seed_bullets,
             )
         return _row_to_topic(row) if row else None
 
@@ -319,6 +334,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
         """
         async with self._pool.acquire() as conn:
@@ -340,6 +356,7 @@ class PostgresRepository:
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
                 group_capacity,
+                seed_bullets,
                 created_at
         """
         async with self._pool.acquire() as conn:
