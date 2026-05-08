@@ -26,7 +26,7 @@ function getJoinUrl(botUsername: string, topicId: string): string {
 export function HomeView({ topics, botUsername }: HomeViewProps) {
   const activeTopic = topics.find((topic) => topic.status === "active") ?? null;
   const pastTopics = topics.filter((topic) => topic.status === "closed");
-  const latestTopic = pastTopics[0] ?? topics[0] ?? null;
+  const latestClosedTopic = pastTopics[0] ?? null;
 
   return (
     <main className="shell home-shell">
@@ -54,9 +54,9 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
               Join a Group
             </a>
           ) : null}
-          {latestTopic ? (
-            <a className="secondary-link" href={`/results?topicId=${latestTopic.id}`}>
-              {activeTopic ? "See Results" : "Read Latest Summary"}
+          {latestClosedTopic ? (
+            <a className="secondary-link" href={`/results?topicId=${latestClosedTopic.id}`}>
+              {activeTopic ? "See Past Results" : "Read Latest Summary"}
             </a>
           ) : null}
         </div>
@@ -97,7 +97,7 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
           )}
         </div>
       </section>
-      {topics.length > 0 ? (
+      {pastTopics.length > 0 ? (
         <section className="topic-rail-section" aria-labelledby="topic-rail-title">
           <div className="section-heading">
             <h2 className="eyebrow" id="topic-rail-title">
@@ -105,7 +105,7 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
             </h2>
           </div>
           <div className="topic-rail" aria-label="Topic carousel">
-            {topics.map((topic, index) => (
+            {pastTopics.map((topic, index) => (
               <a
                 className={`topic-slide ${index === 0 ? "topic-slide-featured" : ""}`}
                 href={`/results?topicId=${topic.id}`}
@@ -117,21 +117,17 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
                   {topic.description ??
                     "A structured public deliberation summarized after closure."}
                 </p>
-                <span className="topic-date">
-                  {topic.status === "active"
-                    ? `Closes ${formatCloseDate(topic.closes_at)}`
-                    : `Closed ${formatCloseDate(topic.closes_at)}`}
-                </span>
+                <span className="topic-date">Closed {formatCloseDate(topic.closes_at)}</span>
               </a>
             ))}
           </div>
         </section>
-      ) : (
+      ) : topics.length === 0 ? (
         <section className="empty-state">
           <h2>No discussions published yet</h2>
           <p>The first topic will appear here once it is created.</p>
         </section>
-      )}
+      ) : null}
     </main>
   );
 }
