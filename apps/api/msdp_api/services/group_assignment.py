@@ -45,6 +45,7 @@ class GroupAssignmentService:
             telegram_group = await self._telegram_gateway.create_group(
                 ordinal=len(groups) + 1,
                 capacity=self._group_capacity,
+                topic_title=topic.title,
             )
             group = await self._repository.create_group(
                 topic_id=topic_id,

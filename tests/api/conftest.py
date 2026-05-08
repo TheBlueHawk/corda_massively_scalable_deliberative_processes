@@ -18,12 +18,17 @@ class FakeTelegramGateway:
     sent_messages: list[dict[str, str | int]] = field(default_factory=list)
     moderator_comments: list[dict[str, str | int]] = field(default_factory=list)
 
-    async def create_group(self, ordinal: int, capacity: int) -> CreatedTelegramGroup:
+    async def create_group(
+        self,
+        ordinal: int,
+        capacity: int,
+        topic_title: str,
+    ) -> CreatedTelegramGroup:
         del capacity
         group = CreatedTelegramGroup(
             thread_id=1000 + ordinal,
             invite_link=f"https://t.me/joinchat/group-{ordinal}",
-            topic_name=f"Group {ordinal}",
+            topic_name=f"{topic_title} · Group {ordinal}",
         )
         self.created_groups.append(group)
         return group
