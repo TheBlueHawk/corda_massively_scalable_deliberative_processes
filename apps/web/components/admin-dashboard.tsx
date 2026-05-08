@@ -23,6 +23,7 @@ type TopicFormState = {
   description: string;
   closesAt: string;
   crossPollinationIntervalDays: string;
+  groupCapacity: string;
 };
 
 type TopicEndFormState = {
@@ -30,6 +31,7 @@ type TopicEndFormState = {
   description: string;
   closesAt: string;
   crossPollinationIntervalDays: string;
+  groupCapacity: string;
 };
 
 type PendingConfirmation =
@@ -41,11 +43,14 @@ type PendingConfirmation =
       topicId: string;
     };
 
+const DEFAULT_GROUP_CAPACITY = "8";
+
 const emptyTopicForm: TopicFormState = {
   title: "",
   description: "",
   closesAt: "",
   crossPollinationIntervalDays: "1",
+  groupCapacity: DEFAULT_GROUP_CAPACITY,
 };
 
 const emptyTopicEndForm: TopicEndFormState = {
@@ -53,6 +58,7 @@ const emptyTopicEndForm: TopicEndFormState = {
   description: "",
   closesAt: "",
   crossPollinationIntervalDays: "1",
+  groupCapacity: DEFAULT_GROUP_CAPACITY,
 };
 
 function getStoredAdminKey(): string | null {
@@ -125,6 +131,11 @@ function daysInputToSeconds(value: string): number {
   return Math.max(1, Math.round(Number(value) * 86_400));
 }
 
+function parseGroupCapacity(value: string): number {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8;
+}
+
 export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   const [adminKey, setAdminKey] = useState(() => getStoredAdminKey() ?? "");
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
@@ -160,6 +171,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
               crossPollinationIntervalDays: secondsToDaysInput(
                 item.topic.cross_pollination_interval_seconds,
               ),
+              groupCapacity: String(item.topic.group_capacity),
             },
           ]),
         ),
@@ -192,6 +204,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                   crossPollinationIntervalDays: secondsToDaysInput(
                     item.topic.cross_pollination_interval_seconds,
                   ),
+                  groupCapacity: String(item.topic.group_capacity),
                 },
               ]),
             ),
@@ -253,6 +266,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           cross_pollination_interval_seconds: daysInputToSeconds(
             topicForm.crossPollinationIntervalDays,
           ),
+          group_capacity: parseGroupCapacity(topicForm.groupCapacity),
         }),
       "Topic created.",
     );
@@ -326,6 +340,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           cross_pollination_interval_seconds: daysInputToSeconds(
             form.crossPollinationIntervalDays,
           ),
+          group_capacity: parseGroupCapacity(form.groupCapacity),
         }),
       "Topic updated.",
     );
@@ -343,7 +358,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       form.description.trim() === (topic.description ?? "") &&
       form.closesAt === toLocalInputValue(topic.closes_at) &&
       daysInputToSeconds(form.crossPollinationIntervalDays) ===
-        topic.cross_pollination_interval_seconds
+        topic.cross_pollination_interval_seconds &&
+      parseGroupCapacity(form.groupCapacity) === topic.group_capacity
     ) {
       setEditingEndTopicId(null);
       return;
@@ -379,6 +395,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
             crossPollinationIntervalDays: secondsToDaysInput(
               topic.cross_pollination_interval_seconds,
             ),
+            groupCapacity: String(topic.group_capacity),
           },
         };
       });
@@ -515,6 +532,21 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                       value={topicForm.crossPollinationIntervalDays}
                     />
                   </label>
+                  <label>
+                    Group size
+                    <input
+                      min="1"
+                      onChange={(event) =>
+                        setTopicForm((current) => ({
+                          ...current,
+                          groupCapacity: event.target.value,
+                        }))
+                      }
+                      step="1"
+                      type="number"
+                      value={topicForm.groupCapacity}
+                    />
+                  </label>
                   <button type="submit">Create</button>
                 </form>
               ) : null}
@@ -605,7 +637,8 @@ function TopicAdminCard({
             {item.topic.status === "closed" ? (
               <p className="admin-muted">
                 Ended: {formatDate(item.topic.closes_at)} · Cross-pollination every{" "}
-                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s)
+                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s) ·{" "}
+                Group size {item.topic.group_capacity}
               </p>
             ) : isEditingEnd ? (
               <div className="admin-inline-form">
@@ -659,6 +692,19 @@ function TopicAdminCard({
                     value={editForm.crossPollinationIntervalDays}
                   />
                 </label>
+                <label>
+                  Group size
+                  <input
+                    min="1"
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, groupCapacity: event.target.value })
+                    }
+                    onKeyDown={saveOnEnter}
+                    step="1"
+                    type="number"
+                    value={editForm.groupCapacity}
+                  />
+                </label>
                 <button onClick={onUpdate} type="button">
                   Save
                 </button>
@@ -666,7 +712,8 @@ function TopicAdminCard({
             ) : (
               <p className="admin-muted">
                 Expected end: {formatDate(item.topic.closes_at)} · Cross-pollination every{" "}
-                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s)
+                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s) ·{" "}
+                Group size {item.topic.group_capacity}
                 <button
                   aria-label={`Edit topic schedule for ${item.topic.title}`}
                   className="admin-icon-button"

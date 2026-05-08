@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 DEFAULT_CROSS_POLLINATION_INTERVAL_SECONDS = 86_400
+DEFAULT_GROUP_CAPACITY = 8
 
 
 def _require_timezone(value: datetime | None) -> datetime | None:
@@ -36,6 +37,7 @@ class Topic(BaseModel):
     closes_at: datetime | None
     cross_pollination_interval_seconds: int
     next_cross_pollination_at: datetime | None
+    group_capacity: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -51,6 +53,7 @@ class TopicCreate(BaseModel):
         default=DEFAULT_CROSS_POLLINATION_INTERVAL_SECONDS,
         gt=0,
     )
+    group_capacity: int = Field(default=DEFAULT_GROUP_CAPACITY, gt=0)
 
     _validate_closes_at = field_validator("closes_at")(_require_timezone)
 
@@ -62,6 +65,7 @@ class TopicUpdate(BaseModel):
     description: str | None = None
     closes_at: datetime | None = None
     cross_pollination_interval_seconds: int | None = Field(default=None, gt=0)
+    group_capacity: int | None = Field(default=None, gt=0)
 
     _validate_closes_at = field_validator("closes_at")(_require_timezone)
 
@@ -145,6 +149,7 @@ class TopicListItemResponse(BaseModel):
     closes_at: datetime | None
     cross_pollination_interval_seconds: int
     next_cross_pollination_at: datetime | None
+    group_capacity: int
     created_at: datetime
 
 

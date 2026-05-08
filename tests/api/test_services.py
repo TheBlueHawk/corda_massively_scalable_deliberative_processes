@@ -14,7 +14,6 @@ from msdp_api.services.summarization import SummarizationService, build_transcri
 async def test_group_assignment_picks_least_full_group(
     repository,
     telegram_gateway,
-    settings,
 ):
     topic = await repository.create_topic(TopicCreate(title="Topic"))
     first_group = await repository.create_group(
@@ -32,7 +31,7 @@ async def test_group_assignment_picks_least_full_group(
         telegram_topic_name="Group 2",
     )
     await repository.increment_group_member_count(first_group.id)
-    service = GroupAssignmentService(repository, telegram_gateway, settings.group_capacity)
+    service = GroupAssignmentService(repository, telegram_gateway)
 
     result = await service.assign_user_to_topic(
         topic_id=topic.id,
@@ -48,7 +47,6 @@ async def test_group_assignment_picks_least_full_group(
 async def test_group_assignment_creates_group_when_existing_groups_are_full(
     repository,
     telegram_gateway,
-    settings,
 ):
     topic = await repository.create_topic(TopicCreate(title="Topic"))
     first_group = await repository.create_group(
@@ -59,7 +57,7 @@ async def test_group_assignment_creates_group_when_existing_groups_are_full(
         telegram_topic_name="Group 1",
     )
     await repository.increment_group_member_count(first_group.id)
-    service = GroupAssignmentService(repository, telegram_gateway, settings.group_capacity)
+    service = GroupAssignmentService(repository, telegram_gateway)
 
     result = await service.assign_user_to_topic(
         topic_id=topic.id,
@@ -75,10 +73,9 @@ async def test_group_assignment_creates_group_when_existing_groups_are_full(
 async def test_duplicate_start_does_not_create_duplicate_membership(
     repository,
     telegram_gateway,
-    settings,
 ):
     topic = await repository.create_topic(TopicCreate(title="Topic"))
-    service = GroupAssignmentService(repository, telegram_gateway, settings.group_capacity)
+    service = GroupAssignmentService(repository, telegram_gateway)
     user = User(telegram_user_id=3, first_name="Lin")
 
     first = await service.assign_user_to_topic(topic.id, user, topic)

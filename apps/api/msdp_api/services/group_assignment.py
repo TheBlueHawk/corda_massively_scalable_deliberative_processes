@@ -20,12 +20,10 @@ class GroupAssignmentService:
         self,
         repository: Repository,
         telegram_gateway: TelegramGateway,
-        group_capacity: int,
     ) -> None:
         """Initialize the service."""
         self._repository = repository
         self._telegram_gateway = telegram_gateway
-        self._group_capacity = group_capacity
 
     async def assign_user_to_topic(
         self,
@@ -44,14 +42,14 @@ class GroupAssignmentService:
         if group is None:
             telegram_group = await self._telegram_gateway.create_group(
                 ordinal=len(groups) + 1,
-                capacity=self._group_capacity,
+                capacity=topic.group_capacity,
                 topic_title=topic.title,
             )
             group = await self._repository.create_group(
                 topic_id=topic_id,
                 thread_id=telegram_group.thread_id,
                 invite_link=telegram_group.invite_link,
-                capacity=self._group_capacity,
+                capacity=topic.group_capacity,
                 telegram_topic_name=telegram_group.topic_name,
             )
             was_created = True

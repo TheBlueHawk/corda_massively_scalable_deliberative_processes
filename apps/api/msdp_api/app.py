@@ -59,7 +59,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     group_assignment_service = GroupAssignmentService(
         repository=repository,
         telegram_gateway=telegram_gateway,
-        group_capacity=settings.group_capacity,
     )
     summarization_service = SummarizationService(
         repository=repository,
@@ -125,7 +124,6 @@ def create_app(
         group_assignment_service = GroupAssignmentService(
             repository=runtime_repository,
             telegram_gateway=runtime_gateway,
-            group_capacity=runtime_settings.group_capacity,
         )
         runtime_summarizer = summarizer or AnthropicSummarizer(
             api_key=runtime_settings.anthropic_api_key,

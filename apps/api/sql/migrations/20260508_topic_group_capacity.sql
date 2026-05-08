@@ -1,0 +1,2 @@
+ALTER TABLE topics
+    ADD COLUMN IF NOT EXISTS group_capacity INT NOT NULL DEFAULT 8;
