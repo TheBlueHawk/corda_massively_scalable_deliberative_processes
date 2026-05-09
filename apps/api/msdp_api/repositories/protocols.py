@@ -27,6 +27,12 @@ class Repository(Protocol):
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None: ...
 
+    async def set_topic_cover_image_url(
+        self,
+        topic_id: UUID,
+        cover_image_url: str,
+    ) -> Topic | None: ...
+
     async def schedule_next_cross_pollination(
         self,
         topic_id: UUID,

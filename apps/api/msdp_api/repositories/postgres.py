@@ -32,6 +32,7 @@ def _row_to_topic(row: asyncpg.Record) -> Topic:
         next_cross_pollination_at=row["next_cross_pollination_at"],
         group_capacity=row["group_capacity"],
         seed_bullets=list(row["seed_bullets"]),
+        cover_image_url=row["cover_image_url"],
         created_at=row["created_at"],
     )
 
@@ -93,6 +94,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -116,6 +118,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE id = $1
@@ -137,6 +140,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             ORDER BY created_at DESC
@@ -158,6 +162,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -182,6 +187,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -205,9 +211,10 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
             )
-            VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, NULL, $8)
             RETURNING
                 id,
                 title,
@@ -218,6 +225,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
         """
         now = datetime.now(UTC)
@@ -298,6 +306,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
         """
         async with self._pool.acquire() as conn:
@@ -313,6 +322,33 @@ class PostgresRepository:
                 next_group_capacity,
                 next_seed_bullets,
             )
+        return _row_to_topic(row) if row else None
+
+    async def set_topic_cover_image_url(
+        self,
+        topic_id: UUID,
+        cover_image_url: str,
+    ) -> Topic | None:
+        """Persist a generated cover image URL for the topic."""
+        query = """
+            UPDATE topics
+            SET cover_image_url = $2
+            WHERE id = $1
+            RETURNING
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
+                created_at
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, topic_id, cover_image_url)
         return _row_to_topic(row) if row else None
 
     async def schedule_next_cross_pollination(
@@ -335,6 +371,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
         """
         async with self._pool.acquire() as conn:
@@ -357,6 +394,7 @@ class PostgresRepository:
                 next_cross_pollination_at,
                 group_capacity,
                 seed_bullets,
+                cover_image_url,
                 created_at
         """
         async with self._pool.acquire() as conn:

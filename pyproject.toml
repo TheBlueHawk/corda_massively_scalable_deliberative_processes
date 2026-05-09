@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
     "anthropic",
     "asyncpg",
+    "openai",
     "fastapi",
     "httpx",
     "mkdocs",

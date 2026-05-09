@@ -13,6 +13,7 @@ export type TopicListItem = ActiveTopic & {
   next_cross_pollination_at: string | null;
   group_capacity: number;
   seed_bullets?: string[];
+  cover_image_url: string | null;
   created_at: string;
 };
 
@@ -168,6 +169,16 @@ export async function updateAdminTopic(
   await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function generateAdminTopicCover(
+  apiBaseUrl: string,
+  adminKey: string,
+  topicId: string,
+): Promise<void> {
+  await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}/generate-cover`, {
+    method: "POST",
   });
 }
 

@@ -86,6 +86,7 @@ class InMemoryRepository:
             + timedelta(seconds=payload.cross_pollination_interval_seconds),
             group_capacity=payload.group_capacity,
             seed_bullets=list(payload.seed_bullets),
+            cover_image_url=None,
             created_at=now,
         )
         self.topics[topic.id] = topic
@@ -139,6 +140,19 @@ class InMemoryRepository:
                 "seed_bullets": next_seed_bullets,
             },
         )
+        self.topics[topic_id] = updated
+        return updated
+
+    async def set_topic_cover_image_url(
+        self,
+        topic_id: UUID,
+        cover_image_url: str,
+    ) -> Topic | None:
+        """Persist a generated cover image URL for the topic."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        updated = topic.model_copy(update={"cover_image_url": cover_image_url})
         self.topics[topic_id] = updated
         return updated
 

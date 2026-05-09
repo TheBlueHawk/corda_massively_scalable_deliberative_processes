@@ -40,6 +40,7 @@ class Topic(BaseModel):
     next_cross_pollination_at: datetime | None
     group_capacity: int
     seed_bullets: list[str]
+    cover_image_url: str | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -154,6 +155,7 @@ class TopicListItemResponse(BaseModel):
     cross_pollination_interval_seconds: int
     next_cross_pollination_at: datetime | None
     group_capacity: int
+    cover_image_url: str | None
     created_at: datetime
 
 

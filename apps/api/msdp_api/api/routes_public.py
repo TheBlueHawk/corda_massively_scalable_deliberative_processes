@@ -52,6 +52,7 @@ async def list_topics(
             cross_pollination_interval_seconds=topic.cross_pollination_interval_seconds,
             next_cross_pollination_at=topic.next_cross_pollination_at,
             group_capacity=topic.group_capacity,
+            cover_image_url=topic.cover_image_url,
             created_at=topic.created_at,
         )
         for topic in topics
@@ -76,6 +77,7 @@ async def get_topic(
         cross_pollination_interval_seconds=topic.cross_pollination_interval_seconds,
         next_cross_pollination_at=topic.next_cross_pollination_at,
         group_capacity=topic.group_capacity,
+        cover_image_url=topic.cover_image_url,
         created_at=topic.created_at,
     )
 

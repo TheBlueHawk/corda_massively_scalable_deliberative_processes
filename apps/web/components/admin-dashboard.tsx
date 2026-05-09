@@ -10,6 +10,7 @@ import {
   createAdminTopic,
   fetchAdminDashboard,
   fetchAdminGroupMessages,
+  generateAdminTopicCover,
   toTimezoneAwareIso,
   updateAdminTopic,
 } from "@/lib/api";
@@ -297,6 +298,13 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
     executeCreateTopic();
   }
 
+  function generateCover(topicId: string) {
+    void runAction(
+      () => generateAdminTopicCover(apiBaseUrl, adminKey, topicId),
+      "Cover image generated.",
+    );
+  }
+
   async function loadMessages(group: AdminGroupOverview) {
     setSelectedGroup(group);
     setLoading(true);
@@ -494,6 +502,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                   setEditForms((current) => ({ ...current, [item.topic.id]: form }))
                 }
                 onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
+                onGenerateCover={() => generateCover(item.topic.id)}
                 onLoadMessages={loadMessages}
                 onUpdate={() => requestUpdateTopic(item.topic.id)}
               />
@@ -602,6 +611,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                       setEditForms((current) => ({ ...current, [item.topic.id]: form }))
                     }
                     onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
+                    onGenerateCover={() => generateCover(item.topic.id)}
                     onLoadMessages={loadMessages}
                     onUpdate={() => requestUpdateTopic(item.topic.id)}
                   />
@@ -638,6 +648,7 @@ function TopicAdminCard({
   minimumEndDate,
   onEditChange,
   onEditEndStart,
+  onGenerateCover,
   onLoadMessages,
   onUpdate,
 }: {
@@ -647,6 +658,7 @@ function TopicAdminCard({
   minimumEndDate: string;
   onEditChange: (form: TopicEndFormState) => void;
   onEditEndStart: () => void;
+  onGenerateCover: () => void;
   onLoadMessages: (group: AdminGroupOverview) => void;
   onUpdate: () => void;
 }) {
@@ -772,6 +784,16 @@ function TopicAdminCard({
             )}
           </div>
         </div>
+      </div>
+
+      <div className="admin-cover-actions">
+        {item.topic.cover_image_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img alt="Cover preview" className="admin-cover-preview" src={item.topic.cover_image_url} />
+        ) : null}
+        <button className="admin-text-button" onClick={onGenerateCover} type="button">
+          {item.topic.cover_image_url ? "Regenerate cover" : "Generate cover"}
+        </button>
       </div>
 
       <div className="admin-group-table">

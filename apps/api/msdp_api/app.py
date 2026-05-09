@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import asyncpg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from openai import AsyncOpenAI
 
 from msdp_api.api.routes_admin import router as admin_router
 from msdp_api.api.routes_public import router as public_router
@@ -18,6 +19,7 @@ from msdp_api.core.config import Settings, get_settings
 from msdp_api.db.migrations import apply_migrations
 from msdp_api.repositories.memory import InMemoryRepository
 from msdp_api.repositories.postgres import PostgresRepository
+from msdp_api.services.cover_image import CoverImageService
 from msdp_api.services.group_assignment import GroupAssignmentService
 from msdp_api.services.summarization import AnthropicSummarizer, SummarizationService, Summarizer
 from msdp_api.telegram.gateway import TelegramBotGateway, TelegramGateway
@@ -68,11 +70,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         ),
         telegram_gateway=telegram_gateway,
     )
+    cover_image_service = CoverImageService(
+        repository=repository,
+        client=AsyncOpenAI(api_key=settings.openai_api_key),
+        model=settings.cover_image_model,
+    )
     app.state.settings = settings
     app.state.pool = pool
     app.state.repository = repository
     app.state.group_assignment_service = group_assignment_service
     app.state.summarization_service = summarization_service
+    app.state.cover_image_service = cover_image_service
     summary_task = asyncio.create_task(
         _run_due_summarization_loop(
             summarization_service=summarization_service,
@@ -136,6 +144,11 @@ def create_app(
             repository=runtime_repository,
             summarizer=runtime_summarizer,
             telegram_gateway=runtime_gateway,
+        )
+        app.state.cover_image_service = CoverImageService(
+            repository=runtime_repository,
+            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
+            model=runtime_settings.cover_image_model,
         )
         app.state.telegram_webhook_service = TelegramWebhookService(
             repository=runtime_repository,

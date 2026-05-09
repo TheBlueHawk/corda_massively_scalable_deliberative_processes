@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from msdp_api.api.dependencies import (
+    get_cover_image_service,
     get_repository,
     get_summarization_service,
     require_admin_key,
@@ -27,6 +28,7 @@ from msdp_api.db.models import (
     TopicUpdatedResponse,
 )
 from msdp_api.repositories.protocols import Repository
+from msdp_api.services.cover_image import CoverImageService
 from msdp_api.services.summarization import SummarizationService
 
 router = APIRouter(
@@ -165,6 +167,22 @@ async def cross_pollinate_topic(
 ) -> CrossPollinationResult:
     """Trigger cross-pollination for a topic."""
     return await summarization_service.cross_pollinate_topic(topic_id)
+
+
+@router.post("/topics/{topic_id}/generate-cover", response_model=TopicUpdatedResponse)
+async def generate_topic_cover_image(
+    topic_id: UUID,
+    cover_image_service: Annotated[CoverImageService, Depends(get_cover_image_service)],
+) -> TopicUpdatedResponse:
+    """Generate a cover image for the topic and persist its URL."""
+    try:
+        topic = await cover_image_service.generate_and_persist(topic_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    return TopicUpdatedResponse(topic=topic)
 
 
 @router.post("/summarize/{topic_id}", response_model=SummarizationResult)

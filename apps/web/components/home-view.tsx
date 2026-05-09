@@ -111,6 +111,15 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
                 href={`/results?topicId=${topic.id}`}
                 key={topic.id}
               >
+                {topic.cover_image_url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    alt=""
+                    aria-hidden="true"
+                    className="topic-slide-cover"
+                    src={topic.cover_image_url}
+                  />
+                ) : null}
                 <span className="topic-status">{getStatusLabel(topic)}</span>
                 <h3>{topic.title}</h3>
                 <p>
