@@ -23,8 +23,9 @@ class FakeTelegramGateway:
         ordinal: int,
         capacity: int,
         topic_title: str,
+        icon_color: int,
     ) -> CreatedTelegramGroup:
-        del capacity
+        del capacity, icon_color
         group = CreatedTelegramGroup(
             thread_id=1000 + ordinal,
             invite_link=f"https://t.me/joinchat/group-{ordinal}",

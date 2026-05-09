@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from msdp_api.db.models import GroupAssignmentResult, Topic, User
+from msdp_api.telegram.gateway import pick_forum_icon_color
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -50,6 +51,7 @@ class GroupAssignmentService:
                 ordinal=len(groups) + 1,
                 capacity=topic.group_capacity,
                 topic_title=topic.title,
+                icon_color=pick_forum_icon_color(str(topic.id)),
             )
             group = await self._repository.create_group(
                 topic_id=topic_id,
