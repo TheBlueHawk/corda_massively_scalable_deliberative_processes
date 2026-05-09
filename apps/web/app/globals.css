@@ -229,7 +229,7 @@ h1 {
 
 .topic-rail {
   display: grid;
-  grid-auto-columns: minmax(260px, 32%);
+  grid-auto-columns: minmax(300px, 32%);
   grid-auto-flow: column;
   gap: 1rem;
   overflow-x: auto;
@@ -303,9 +303,12 @@ h1 {
 
 .topic-slide h3 {
   margin: auto 0 0;
-  font-size: clamp(1.9rem, 4vw, 3.6rem);
-  line-height: 0.98;
+  font-size: clamp(1.3rem, 2.2vw, 2.1rem);
+  line-height: 1.1;
   font-weight: 500;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  text-wrap: balance;
 }
 
 .topic-slide p {
