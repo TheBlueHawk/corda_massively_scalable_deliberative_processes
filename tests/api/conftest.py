@@ -82,7 +82,6 @@ def settings() -> Settings:
             "DATABASE_URL": "postgresql://corda:test@localhost:5432/corda",
             "TELEGRAM_BOT_TOKEN": "test-token",
             "TELEGRAM_SUPERGROUP_ID": -100123,
-            "ANTHROPIC_API_KEY": "test-key",
             "OPENAI_API_KEY": "test-openai-key",
             "X_ADMIN_KEY": "admin-key",
             "TELEGRAM_BOT_USERNAME": "corda_test_bot",

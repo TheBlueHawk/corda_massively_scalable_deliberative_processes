@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import cast
 from uuid import uuid4
 
+from openai import AsyncOpenAI
 import pytest
 
 from msdp_api.db.models import ThreadMessage, TopicCreate, TopicStatus, User
 from msdp_api.services.group_assignment import GroupAssignmentService
-from msdp_api.services.summarization import SummarizationService, build_transcript
+from msdp_api.services.summarization import (
+    CROSS_POLLINATION_PROMPT,
+    SUMMARY_PROMPT,
+    OpenAISummarizer,
+    SummarizationService,
+    build_transcript,
+)
 
 
 @pytest.mark.asyncio
@@ -115,6 +124,38 @@ def test_build_transcript_orders_messages_by_timestamp():
 
     assert transcript.splitlines()[0].endswith("First point")
     assert transcript.splitlines()[1].endswith("Second point")
+
+
+@pytest.mark.asyncio
+async def test_openai_summarizer_uses_responses_api():
+    class FakeResponses:
+        def __init__(self):
+            self.calls = []
+
+        async def create(self, **kwargs):
+            self.calls.append(kwargs)
+            return SimpleNamespace(output_text="  - Generated summary.  ")
+
+    fake_client = SimpleNamespace(responses=FakeResponses())
+    summarizer = OpenAISummarizer(client=cast("AsyncOpenAI", fake_client), model="gpt-5-mini")
+
+    summary = await summarizer.summarize("Speaker: We agree.")
+    comment = await summarizer.cross_pollinate(
+        target_group_name="Group 1",
+        target_summary="- Bikes are useful.",
+        other_group_summaries="Group 2:\n- Transit matters.",
+    )
+
+    assert summary == "- Generated summary."
+    assert comment == "- Generated summary."
+    assert fake_client.responses.calls[0] == {
+        "model": "gpt-5-mini",
+        "instructions": SUMMARY_PROMPT,
+        "input": "Speaker: We agree.",
+        "max_output_tokens": 500,
+    }
+    assert fake_client.responses.calls[1]["instructions"] == CROSS_POLLINATION_PROMPT
+    assert fake_client.responses.calls[1]["max_output_tokens"] == 180
 
 
 @pytest.mark.asyncio

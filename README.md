@@ -13,7 +13,7 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 - Backend: FastAPI on Railway
 - Database: Neon Postgres
 - Bot integration: Telegram Bot API via `python-telegram-bot`
-- Summarization: Anthropic API
+- Summarization: OpenAI API
 
 ## Local setup
 

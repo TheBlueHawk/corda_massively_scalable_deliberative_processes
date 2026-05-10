@@ -26,11 +26,12 @@ Use the start command from [`railway.toml`](/Users/kevinblin/Code/corda_massivel
 - `DATABASE_URL`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_SUPERGROUP_ID`
-- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
 - `X_ADMIN_KEY`
 - `TELEGRAM_BOT_USERNAME`
 - `GROUP_CAPACITY`
 - `SUMMARY_MODEL`
+- `COVER_IMAGE_MODEL`
 - `SUMMARY_CHECK_INTERVAL_SECONDS`
 
 After deployment, register the Telegram webhook:

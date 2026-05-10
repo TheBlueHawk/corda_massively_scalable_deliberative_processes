@@ -21,7 +21,7 @@ from msdp_api.repositories.memory import InMemoryRepository
 from msdp_api.repositories.postgres import PostgresRepository
 from msdp_api.services.cover_image import CoverImageService
 from msdp_api.services.group_assignment import GroupAssignmentService
-from msdp_api.services.summarization import AnthropicSummarizer, SummarizationService, Summarizer
+from msdp_api.services.summarization import OpenAISummarizer, SummarizationService, Summarizer
 from msdp_api.telegram.gateway import TelegramBotGateway, TelegramGateway
 from msdp_api.telegram.service import TelegramWebhookService
 
@@ -64,8 +64,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     summarization_service = SummarizationService(
         repository=repository,
-        summarizer=AnthropicSummarizer(
-            api_key=settings.anthropic_api_key,
+        summarizer=OpenAISummarizer(
+            client=AsyncOpenAI(api_key=settings.openai_api_key),
             model=settings.summary_model,
         ),
         telegram_gateway=telegram_gateway,
@@ -133,8 +133,8 @@ def create_app(
             repository=runtime_repository,
             telegram_gateway=runtime_gateway,
         )
-        runtime_summarizer = summarizer or AnthropicSummarizer(
-            api_key=runtime_settings.anthropic_api_key,
+        runtime_summarizer = summarizer or OpenAISummarizer(
+            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
             model=runtime_settings.summary_model,
         )
         app.state.settings = runtime_settings
