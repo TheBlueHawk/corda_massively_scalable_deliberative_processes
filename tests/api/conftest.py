@@ -7,6 +7,7 @@ import pytest
 
 from msdp_api.app import create_app
 from msdp_api.core.config import Settings
+from msdp_api.db.models import TopicSuggestionResponse
 from msdp_api.repositories.memory import InMemoryRepository
 from msdp_api.services.summarization import Summarizer
 from msdp_api.telegram.gateway import CreatedTelegramGroup
@@ -75,6 +76,34 @@ class FakeSummarizer(Summarizer):
         )
 
 
+class FakeTopicSuggestionService:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, object]] = []
+
+    async def suggest(
+        self,
+        title: str,
+        description: str | None = None,
+        seed_bullets: list[str] | None = None,
+    ) -> TopicSuggestionResponse:
+        self.requests.append(
+            {
+                "title": title,
+                "description": description,
+                "seed_bullets": seed_bullets or [],
+            },
+        )
+        return TopicSuggestionResponse(
+            description=f"Discuss {title} from multiple practical angles.",
+            seed_bullets=[
+                "What benefit would matter most?",
+                "Who could be harmed or overlooked?",
+                "What tradeoff feels acceptable?",
+                "What evidence would change your mind?",
+            ],
+        )
+
+
 @pytest.fixture
 def settings() -> Settings:
     return Settings.model_validate(
@@ -107,16 +136,23 @@ def summarizer() -> FakeSummarizer:
 
 
 @pytest.fixture
+def topic_suggestion_service() -> FakeTopicSuggestionService:
+    return FakeTopicSuggestionService()
+
+
+@pytest.fixture
 def client(
     settings: Settings,
     repository: InMemoryRepository,
     telegram_gateway: FakeTelegramGateway,
     summarizer: FakeSummarizer,
+    topic_suggestion_service: FakeTopicSuggestionService,
 ) -> TestClient:
     app = create_app(
         settings=settings,
         repository=repository,
         telegram_gateway=telegram_gateway,
         summarizer=summarizer,
+        topic_suggestion_service=topic_suggestion_service,
     )
     return TestClient(app)

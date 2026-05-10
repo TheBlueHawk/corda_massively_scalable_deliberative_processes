@@ -75,6 +75,21 @@ class TopicUpdate(BaseModel):
     _validate_closes_at = field_validator("closes_at")(_require_timezone)
 
 
+class TopicSuggestionRequest(BaseModel):
+    """Admin request for AI-assisted topic drafting."""
+
+    title: str = Field(min_length=1)
+    description: str | None = None
+    seed_bullets: list[str] = Field(default_factory=list, max_length=MAX_SEED_BULLETS)
+
+
+class TopicSuggestionResponse(BaseModel):
+    """AI-generated editable topic draft fields."""
+
+    description: str
+    seed_bullets: list[str] = Field(max_length=MAX_SEED_BULLETS)
+
+
 class Group(BaseModel):
     """A Telegram forum topic backing a deliberation group."""
 

@@ -17,6 +17,7 @@ from msdp_api.services.summarization import (
     SummarizationService,
     build_transcript,
 )
+from msdp_api.services.topic_suggestion import TopicSuggestionService
 
 
 @pytest.mark.asyncio
@@ -156,6 +157,36 @@ async def test_openai_summarizer_uses_responses_api():
     }
     assert fake_client.responses.calls[1]["instructions"] == CROSS_POLLINATION_PROMPT
     assert fake_client.responses.calls[1]["max_output_tokens"] == 180
+
+
+@pytest.mark.asyncio
+async def test_topic_suggestion_service_parses_openai_json():
+    class FakeResponses:
+        def __init__(self):
+            self.calls = []
+
+        async def create(self, **kwargs):
+            self.calls.append(kwargs)
+            return SimpleNamespace(
+                output_text=(
+                    '{"description":"A neutral draft.",'
+                    '"seed_bullets":["Benefit?","Concern?","Tradeoff?","Evidence?"]}'
+                ),
+            )
+
+    fake_client = SimpleNamespace(responses=FakeResponses())
+    service = TopicSuggestionService(client=cast("AsyncOpenAI", fake_client), model="gpt-5-mini")
+
+    suggestion = await service.suggest(
+        title="Mobility pricing",
+        description="Existing",
+        seed_bullets=["Old prompt"],
+    )
+
+    assert suggestion.description == "A neutral draft."
+    assert suggestion.seed_bullets == ["Benefit?", "Concern?", "Tradeoff?", "Evidence?"]
+    assert fake_client.responses.calls[0]["model"] == "gpt-5-mini"
+    assert "Mobility pricing" in fake_client.responses.calls[0]["input"]
 
 
 @pytest.mark.asyncio

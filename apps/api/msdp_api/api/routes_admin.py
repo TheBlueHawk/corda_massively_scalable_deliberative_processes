@@ -11,6 +11,7 @@ from msdp_api.api.dependencies import (
     get_cover_image_service,
     get_repository,
     get_summarization_service,
+    get_topic_suggestion_service,
     require_admin_key,
 )
 from msdp_api.db.models import (
@@ -24,12 +25,15 @@ from msdp_api.db.models import (
     SummarizationResult,
     TopicCreate,
     TopicCreatedResponse,
+    TopicSuggestionRequest,
+    TopicSuggestionResponse,
     TopicUpdate,
     TopicUpdatedResponse,
 )
 from msdp_api.repositories.protocols import Repository
 from msdp_api.services.cover_image import CoverImageService
 from msdp_api.services.summarization import SummarizationService
+from msdp_api.services.topic_suggestion import TopicSuggesterProtocol
 
 router = APIRouter(
     prefix="/admin",
@@ -95,6 +99,28 @@ async def create_topic(
     """Create a new topic."""
     topic = await repository.create_topic(payload)
     return TopicCreatedResponse(topic=topic)
+
+
+@router.post("/topics/suggest", response_model=TopicSuggestionResponse)
+async def suggest_topic_fields(
+    payload: TopicSuggestionRequest,
+    topic_suggestion_service: Annotated[
+        TopicSuggesterProtocol,
+        Depends(get_topic_suggestion_service),
+    ],
+) -> TopicSuggestionResponse:
+    """Suggest editable description and seed prompts for a topic."""
+    try:
+        return await topic_suggestion_service.suggest(
+            title=payload.title,
+            description=payload.description,
+            seed_bullets=payload.seed_bullets,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
 
 @router.patch("/topics/{topic_id}", response_model=TopicUpdatedResponse)

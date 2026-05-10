@@ -11,6 +11,7 @@ from msdp_api.repositories.protocols import Repository
 from msdp_api.services.cover_image import CoverImageService
 from msdp_api.services.group_assignment import GroupAssignmentService
 from msdp_api.services.summarization import SummarizationService
+from msdp_api.services.topic_suggestion import TopicSuggesterProtocol
 from msdp_api.telegram.service import TelegramWebhookService
 
 
@@ -37,6 +38,11 @@ def get_summarization_service(request: Request) -> SummarizationService:
 def get_cover_image_service(request: Request) -> CoverImageService:
     """Return the cover image generation service stored on the application state."""
     return request.app.state.cover_image_service
+
+
+def get_topic_suggestion_service(request: Request) -> TopicSuggesterProtocol:
+    """Return the topic suggestion service stored on the application state."""
+    return request.app.state.topic_suggestion_service
 
 
 def get_runtime_settings(request: Request) -> Settings:

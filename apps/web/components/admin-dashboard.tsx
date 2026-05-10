@@ -11,6 +11,7 @@ import {
   fetchAdminDashboard,
   fetchAdminGroupMessages,
   generateAdminTopicCover,
+  suggestAdminTopicFields,
   toTimezoneAwareIso,
   updateAdminTopic,
 } from "@/lib/api";
@@ -159,6 +160,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   const [selectedGroup, setSelectedGroup] = useState<AdminGroupOverview | null>(null);
   const [messages, setMessages] = useState<AdminThreadMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [suggestingTopicId, setSuggestingTopicId] = useState<string | null>(null);
+  const [generatingCoverTopicId, setGeneratingCoverTopicId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isLoggedIn = dashboard !== null && adminKey.length > 0;
@@ -299,10 +302,60 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   }
 
   function generateCover(topicId: string) {
-    void runAction(
-      () => generateAdminTopicCover(apiBaseUrl, adminKey, topicId),
-      "Cover image generated.",
-    );
+    setGeneratingCoverTopicId(topicId);
+    void runAction(() => generateAdminTopicCover(apiBaseUrl, adminKey, topicId), "Cover updated.")
+      .finally(() => setGeneratingCoverTopicId(null));
+  }
+
+  async function applySuggestion(form: TopicFormState): Promise<TopicFormState> {
+    const title = form.title.trim();
+    if (!title) {
+      throw new Error("Add a topic title before requesting a suggestion.");
+    }
+    const suggestion = await suggestAdminTopicFields(apiBaseUrl, adminKey, {
+      title,
+      description: form.description.trim() || null,
+      seed_bullets: parseSeedBullets(form.seedBullets),
+    });
+    return {
+      ...form,
+      description: suggestion.description,
+      seedBullets: suggestion.seed_bullets.join("\n"),
+    };
+  }
+
+  async function suggestCreateTopicFields() {
+    setSuggestingTopicId("new");
+    setError(null);
+    setNotice(null);
+    try {
+      const nextForm = await applySuggestion(topicForm);
+      setTopicForm(nextForm);
+      setNotice("Draft fields suggested.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to suggest topic fields.");
+    } finally {
+      setSuggestingTopicId(null);
+    }
+  }
+
+  async function suggestEditTopicFields(topicId: string) {
+    const form = editForms[topicId];
+    if (!form) {
+      return;
+    }
+    setSuggestingTopicId(topicId);
+    setError(null);
+    setNotice(null);
+    try {
+      const nextForm = await applySuggestion(form);
+      setEditForms((current) => ({ ...current, [topicId]: nextForm }));
+      setNotice("Draft fields suggested.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to suggest topic fields.");
+    } finally {
+      setSuggestingTopicId(null);
+    }
   }
 
   async function loadMessages(group: AdminGroupOverview) {
@@ -504,7 +557,10 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                 onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
                 onGenerateCover={() => generateCover(item.topic.id)}
                 onLoadMessages={loadMessages}
+                onSuggestFields={() => void suggestEditTopicFields(item.topic.id)}
                 onUpdate={() => requestUpdateTopic(item.topic.id)}
+                isGeneratingCover={generatingCoverTopicId === item.topic.id}
+                isSuggestingFields={suggestingTopicId === item.topic.id}
               />
             ))}
             <div className="admin-create-topic">
@@ -535,6 +591,14 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                     placeholder="Description"
                     value={topicForm.description}
                   />
+                  <button
+                    className="admin-secondary-button admin-create-suggestion-button"
+                    disabled={suggestingTopicId === "new"}
+                    onClick={() => void suggestCreateTopicFields()}
+                    type="button"
+                  >
+                    {suggestingTopicId === "new" ? "Suggesting..." : "Suggest description + bullets"}
+                  </button>
                   <input
                     onChange={(event) =>
                       setTopicForm((current) => ({ ...current, closesAt: event.target.value }))
@@ -613,7 +677,10 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                     onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
                     onGenerateCover={() => generateCover(item.topic.id)}
                     onLoadMessages={loadMessages}
+                    onSuggestFields={() => void suggestEditTopicFields(item.topic.id)}
                     onUpdate={() => requestUpdateTopic(item.topic.id)}
+                    isGeneratingCover={generatingCoverTopicId === item.topic.id}
+                    isSuggestingFields={suggestingTopicId === item.topic.id}
                   />
                 ))}
               </>
@@ -643,23 +710,29 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function TopicAdminCard({
   editForm,
+  isGeneratingCover,
   isEditingEnd,
+  isSuggestingFields,
   item,
   minimumEndDate,
   onEditChange,
   onEditEndStart,
   onGenerateCover,
   onLoadMessages,
+  onSuggestFields,
   onUpdate,
 }: {
   editForm: TopicEndFormState;
+  isGeneratingCover: boolean;
   isEditingEnd: boolean;
+  isSuggestingFields: boolean;
   item: AdminTopicOverview;
   minimumEndDate: string;
   onEditChange: (form: TopicEndFormState) => void;
   onEditEndStart: () => void;
   onGenerateCover: () => void;
   onLoadMessages: (group: AdminGroupOverview) => void;
+  onSuggestFields: () => void;
   onUpdate: () => void;
 }) {
   function saveOnEnter(event: KeyboardEvent<HTMLInputElement>) {
@@ -688,8 +761,8 @@ function TopicAdminCard({
                 Group size {item.topic.group_capacity}
               </p>
             ) : isEditingEnd ? (
-              <div className="admin-inline-form">
-                <label>
+              <div className="admin-inline-form admin-topic-edit-form">
+                <label className="admin-edit-title-field">
                   Title
                   <input
                     onChange={(event) =>
@@ -700,17 +773,18 @@ function TopicAdminCard({
                     value={editForm.title}
                   />
                 </label>
-                <label>
+                <label className="admin-edit-description-field">
                   Description
                   <textarea
                     onChange={(event) =>
                       onEditChange({ ...editForm, description: event.target.value })
                     }
                     placeholder="Add a curiosity hook — one detail that makes participants want to weigh in."
+                    rows={6}
                     value={editForm.description}
                   />
                 </label>
-                <label>
+                <label className="admin-edit-date-field">
                   Expected end
                   <input
                     autoFocus
@@ -723,7 +797,7 @@ function TopicAdminCard({
                     value={editForm.closesAt}
                   />
                 </label>
-                <label>
+                <label className="admin-edit-interval-field">
                   Cross-pollination interval (days)
                   <input
                     min="0.01"
@@ -739,7 +813,7 @@ function TopicAdminCard({
                     value={editForm.crossPollinationIntervalDays}
                   />
                 </label>
-                <label>
+                <label className="admin-edit-capacity-field">
                   Group size
                   <input
                     min="1"
@@ -752,20 +826,30 @@ function TopicAdminCard({
                     value={editForm.groupCapacity}
                   />
                 </label>
-                <label>
+                <label className="admin-edit-bullets-field">
                   Seed bullets (one per line)
                   <textarea
                     onChange={(event) =>
                       onEditChange({ ...editForm, seedBullets: event.target.value })
                     }
                     placeholder="Pro/con prompts posted into each new group when it spins up."
-                    rows={4}
+                    rows={7}
                     value={editForm.seedBullets}
                   />
                 </label>
-                <button onClick={onUpdate} type="button">
-                  Save
-                </button>
+                <div className="admin-edit-actions">
+                  <button
+                    className="admin-secondary-button"
+                    disabled={isSuggestingFields}
+                    onClick={onSuggestFields}
+                    type="button"
+                  >
+                    {isSuggestingFields ? "Suggesting..." : "Suggest description + bullets"}
+                  </button>
+                  <button onClick={onUpdate} type="button">
+                    Save
+                  </button>
+                </div>
               </div>
             ) : (
               <p className="admin-muted">
@@ -791,8 +875,17 @@ function TopicAdminCard({
           /* eslint-disable-next-line @next/next/no-img-element */
           <img alt="Cover preview" className="admin-cover-preview" src={item.topic.cover_image_url} />
         ) : null}
-        <button className="admin-text-button" onClick={onGenerateCover} type="button">
-          {item.topic.cover_image_url ? "Regenerate cover" : "Generate cover"}
+        <button
+          className="admin-secondary-button"
+          disabled={isGeneratingCover}
+          onClick={onGenerateCover}
+          type="button"
+        >
+          {isGeneratingCover
+            ? "Generating cover..."
+            : item.topic.cover_image_url
+              ? "Regenerate cover image"
+              : "Generate cover image"}
         </button>
       </div>
 

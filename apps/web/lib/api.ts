@@ -50,6 +50,11 @@ export type AdminDashboard = {
   generated_at: string;
 };
 
+export type TopicSuggestion = {
+  description: string;
+  seed_bullets: string[];
+};
+
 export type AdminThreadMessage = {
   message_id: number;
   thread_id: number;
@@ -168,6 +173,21 @@ export async function updateAdminTopic(
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}`, {
     method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function suggestAdminTopicFields(
+  apiBaseUrl: string,
+  adminKey: string,
+  payload: {
+    title: string;
+    description?: string | null;
+    seed_bullets?: string[];
+  },
+): Promise<TopicSuggestion> {
+  return adminFetch<TopicSuggestion>(apiBaseUrl, adminKey, "/admin/topics/suggest", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }

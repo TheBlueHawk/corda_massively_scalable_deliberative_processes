@@ -38,6 +38,30 @@ def test_admin_creates_topic_with_cross_pollination_interval(client):
     assert topic["next_cross_pollination_at"] is not None
 
 
+def test_admin_suggests_topic_fields(client, topic_suggestion_service):
+    response = client.post(
+        "/admin/topics/suggest",
+        headers={"X-Admin-Key": "admin-key"},
+        json={
+            "title": "Should city streets prioritize bikes?",
+            "description": "Current draft",
+            "seed_bullets": ["Existing prompt"],
+        },
+    )
+
+    assert response.status_code == 200
+    suggestion = response.json()
+    assert suggestion["description"].startswith("Discuss Should city streets prioritize bikes?")
+    assert len(suggestion["seed_bullets"]) == 4
+    assert topic_suggestion_service.requests == [
+        {
+            "title": "Should city streets prioritize bikes?",
+            "description": "Current draft",
+            "seed_bullets": ["Existing prompt"],
+        },
+    ]
+
+
 def test_list_topics_newest_first(client):
     first = client.post(
         "/admin/topics",
