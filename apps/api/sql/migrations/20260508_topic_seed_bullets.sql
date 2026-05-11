@@ -1,0 +1,2 @@
+ALTER TABLE topics
+    ADD COLUMN IF NOT EXISTS seed_bullets TEXT[] NOT NULL DEFAULT '{}';

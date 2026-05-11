@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 
 from msdp_api.db.models import (
     CrossPollinationResult,
@@ -54,28 +54,23 @@ class Summarizer:
         raise NotImplementedError
 
 
-class AnthropicSummarizer(Summarizer):
-    """Anthropic-backed summarizer."""
+class OpenAISummarizer(Summarizer):
+    """OpenAI-backed summarizer."""
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, client: AsyncOpenAI, model: str) -> None:
         """Initialize the client."""
-        self._client = AsyncAnthropic(api_key=api_key)
+        self._client = client
         self._model = model
 
     async def summarize(self, transcript: str) -> str:
-        """Generate a summary using Anthropic."""
-        response = await self._client.messages.create(
+        """Generate a summary using OpenAI."""
+        response = await self._client.responses.create(
             model=self._model,
-            max_tokens=500,
-            system=SUMMARY_PROMPT,
-            messages=[{"role": "user", "content": transcript}],
+            instructions=SUMMARY_PROMPT,
+            input=transcript,
+            max_output_tokens=500,
         )
-        parts: list[str] = []
-        for block in response.content:
-            text = getattr(block, "text", None)
-            if isinstance(text, str):
-                parts.append(text)
-        return "\n".join(parts).strip()
+        return response.output_text.strip()
 
     async def cross_pollinate(
         self,
@@ -83,24 +78,19 @@ class AnthropicSummarizer(Summarizer):
         target_summary: str,
         other_group_summaries: str,
     ) -> str:
-        """Generate one cross-pollination moderator comment using Anthropic."""
+        """Generate one cross-pollination moderator comment using OpenAI."""
         prompt = (
             f"Target group: {target_group_name}\n\n"
             f"Target group summary:\n{target_summary}\n\n"
             f"Other group summaries:\n{other_group_summaries}"
         )
-        response = await self._client.messages.create(
+        response = await self._client.responses.create(
             model=self._model,
-            max_tokens=180,
-            system=CROSS_POLLINATION_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
+            instructions=CROSS_POLLINATION_PROMPT,
+            input=prompt,
+            max_output_tokens=180,
         )
-        parts: list[str] = []
-        for block in response.content:
-            text = getattr(block, "text", None)
-            if isinstance(text, str):
-                parts.append(text)
-        return "\n".join(parts).strip()
+        return response.output_text.strip()
 
 
 def build_transcript(messages: Sequence[ThreadMessage]) -> str:

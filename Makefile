@@ -58,6 +58,11 @@ typecheck:
 apply_schema:
 	uv run python apps/api/scripts/apply_schema.py
 
+## Apply pending Neon migrations to the configured database
+.PHONY: apply_migrations
+apply_migrations:
+	uv run python apps/api/scripts/apply_migrations.py
+
 
 ## Set up Python interpreter environment
 .PHONY: create_environment

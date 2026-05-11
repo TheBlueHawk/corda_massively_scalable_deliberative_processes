@@ -10,7 +10,7 @@ def test_config_requires_required_environment_values(monkeypatch, tmp_path):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_SUPERGROUP_ID", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("X_ADMIN_KEY", raising=False)
     monkeypatch.delenv("TELEGRAM_BOT_USERNAME", raising=False)
 

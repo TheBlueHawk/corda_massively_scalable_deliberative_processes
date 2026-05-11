@@ -51,6 +51,8 @@ async def list_topics(
             closes_at=topic.closes_at,
             cross_pollination_interval_seconds=topic.cross_pollination_interval_seconds,
             next_cross_pollination_at=topic.next_cross_pollination_at,
+            group_capacity=topic.group_capacity,
+            cover_image_url=topic.cover_image_url,
             created_at=topic.created_at,
         )
         for topic in topics
@@ -74,6 +76,8 @@ async def get_topic(
         closes_at=topic.closes_at,
         cross_pollination_interval_seconds=topic.cross_pollination_interval_seconds,
         next_cross_pollination_at=topic.next_cross_pollination_at,
+        group_capacity=topic.group_capacity,
+        cover_image_url=topic.cover_image_url,
         created_at=topic.created_at,
     )
 

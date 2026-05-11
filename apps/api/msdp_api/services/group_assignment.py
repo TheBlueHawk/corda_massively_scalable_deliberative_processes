@@ -5,12 +5,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from msdp_api.db.models import GroupAssignmentResult, Topic, User
+from msdp_api.telegram.gateway import pick_forum_icon_color
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from msdp_api.repositories.protocols import Repository
     from msdp_api.telegram.gateway import TelegramGateway
+
+
+def _build_seed_message(bullets: list[str]) -> str:
+    """Format seed talking points as a moderator comment posted into a new group."""
+    rendered = "\n".join(f"• {bullet}" for bullet in bullets)
+    return f"To get the conversation started, here are a few angles to weigh in on:\n\n{rendered}"
 
 
 class GroupAssignmentService:
@@ -20,12 +27,10 @@ class GroupAssignmentService:
         self,
         repository: Repository,
         telegram_gateway: TelegramGateway,
-        group_capacity: int,
     ) -> None:
         """Initialize the service."""
         self._repository = repository
         self._telegram_gateway = telegram_gateway
-        self._group_capacity = group_capacity
 
     async def assign_user_to_topic(
         self,
@@ -44,16 +49,24 @@ class GroupAssignmentService:
         if group is None:
             telegram_group = await self._telegram_gateway.create_group(
                 ordinal=len(groups) + 1,
-                capacity=self._group_capacity,
+                capacity=topic.group_capacity,
+                topic_title=topic.title,
+                icon_color=pick_forum_icon_color(str(topic.id)),
             )
             group = await self._repository.create_group(
                 topic_id=topic_id,
                 thread_id=telegram_group.thread_id,
                 invite_link=telegram_group.invite_link,
-                capacity=self._group_capacity,
+                capacity=topic.group_capacity,
                 telegram_topic_name=telegram_group.topic_name,
             )
             was_created = True
+            if topic.seed_bullets:
+                seed_message = _build_seed_message(topic.seed_bullets)
+                await self._telegram_gateway.send_moderator_comment(
+                    thread_id=group.thread_id,
+                    text=seed_message,
+                )
 
         created_membership = await self._repository.create_membership(
             telegram_user_id=user.telegram_user_id,

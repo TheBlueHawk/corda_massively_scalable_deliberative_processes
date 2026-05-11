@@ -200,5 +200,7 @@ node_modules/
 coverage/
 apps/web/.turbo/
 apps/web/test-results/
+apps/web/playwright-report/
+apps/web/playwright/.cache/
 *.tsbuildinfo
 .vercel

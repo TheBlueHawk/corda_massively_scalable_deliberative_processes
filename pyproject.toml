@@ -16,8 +16,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License"
 ]
 dependencies = [
-    "anthropic",
     "asyncpg",
+    "openai",
     "fastapi",
     "httpx",
     "mkdocs",

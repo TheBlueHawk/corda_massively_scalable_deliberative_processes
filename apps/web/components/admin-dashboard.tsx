@@ -10,6 +10,8 @@ import {
   createAdminTopic,
   fetchAdminDashboard,
   fetchAdminGroupMessages,
+  generateAdminTopicCover,
+  suggestAdminTopicFields,
   toTimezoneAwareIso,
   updateAdminTopic,
 } from "@/lib/api";
@@ -23,11 +25,17 @@ type TopicFormState = {
   description: string;
   closesAt: string;
   crossPollinationIntervalDays: string;
+  groupCapacity: string;
+  seedBullets: string;
 };
 
 type TopicEndFormState = {
+  title: string;
+  description: string;
   closesAt: string;
   crossPollinationIntervalDays: string;
+  groupCapacity: string;
+  seedBullets: string;
 };
 
 type PendingConfirmation =
@@ -39,17 +47,32 @@ type PendingConfirmation =
       topicId: string;
     };
 
+const DEFAULT_GROUP_CAPACITY = "8";
+
 const emptyTopicForm: TopicFormState = {
   title: "",
   description: "",
   closesAt: "",
   crossPollinationIntervalDays: "1",
+  groupCapacity: DEFAULT_GROUP_CAPACITY,
+  seedBullets: "",
 };
 
 const emptyTopicEndForm: TopicEndFormState = {
+  title: "",
+  description: "",
   closesAt: "",
   crossPollinationIntervalDays: "1",
+  groupCapacity: DEFAULT_GROUP_CAPACITY,
+  seedBullets: "",
 };
+
+function parseSeedBullets(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.replace(/^[-•·\s]+/, "").trim())
+    .filter((line) => line.length > 0);
+}
 
 function getStoredAdminKey(): string | null {
   if (typeof window === "undefined") {
@@ -121,6 +144,11 @@ function daysInputToSeconds(value: string): number {
   return Math.max(1, Math.round(Number(value) * 86_400));
 }
 
+function parseGroupCapacity(value: string): number {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8;
+}
+
 export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   const [adminKey, setAdminKey] = useState(() => getStoredAdminKey() ?? "");
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
@@ -132,6 +160,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
   const [selectedGroup, setSelectedGroup] = useState<AdminGroupOverview | null>(null);
   const [messages, setMessages] = useState<AdminThreadMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [suggestingTopicId, setSuggestingTopicId] = useState<string | null>(null);
+  const [generatingCoverTopicId, setGeneratingCoverTopicId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isLoggedIn = dashboard !== null && adminKey.length > 0;
@@ -150,10 +180,14 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           nextDashboard.topics.map((item) => [
             item.topic.id,
             {
+              title: item.topic.title,
+              description: item.topic.description ?? "",
               closesAt: toLocalInputValue(item.topic.closes_at),
               crossPollinationIntervalDays: secondsToDaysInput(
                 item.topic.cross_pollination_interval_seconds,
               ),
+              groupCapacity: String(item.topic.group_capacity),
+              seedBullets: (item.topic.seed_bullets ?? []).join("\n"),
             },
           ]),
         ),
@@ -180,10 +214,14 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
               nextDashboard.topics.map((item) => [
                 item.topic.id,
                 {
+                  title: item.topic.title,
+                  description: item.topic.description ?? "",
                   closesAt: toLocalInputValue(item.topic.closes_at),
                   crossPollinationIntervalDays: secondsToDaysInput(
                     item.topic.cross_pollination_interval_seconds,
                   ),
+                  groupCapacity: String(item.topic.group_capacity),
+                  seedBullets: (item.topic.seed_bullets ?? []).join("\n"),
                 },
               ]),
             ),
@@ -245,6 +283,8 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
           cross_pollination_interval_seconds: daysInputToSeconds(
             topicForm.crossPollinationIntervalDays,
           ),
+          group_capacity: parseGroupCapacity(topicForm.groupCapacity),
+          seed_bullets: parseSeedBullets(topicForm.seedBullets),
         }),
       "Topic created.",
     );
@@ -259,6 +299,63 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       return;
     }
     executeCreateTopic();
+  }
+
+  function generateCover(topicId: string) {
+    setGeneratingCoverTopicId(topicId);
+    void runAction(() => generateAdminTopicCover(apiBaseUrl, adminKey, topicId), "Cover updated.")
+      .finally(() => setGeneratingCoverTopicId(null));
+  }
+
+  async function applySuggestion(form: TopicFormState): Promise<TopicFormState> {
+    const title = form.title.trim();
+    if (!title) {
+      throw new Error("Add a topic title before requesting a suggestion.");
+    }
+    const suggestion = await suggestAdminTopicFields(apiBaseUrl, adminKey, {
+      title,
+      description: form.description.trim() || null,
+      seed_bullets: parseSeedBullets(form.seedBullets),
+    });
+    return {
+      ...form,
+      description: suggestion.description,
+      seedBullets: suggestion.seed_bullets.join("\n"),
+    };
+  }
+
+  async function suggestCreateTopicFields() {
+    setSuggestingTopicId("new");
+    setError(null);
+    setNotice(null);
+    try {
+      const nextForm = await applySuggestion(topicForm);
+      setTopicForm(nextForm);
+      setNotice("Draft fields suggested.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to suggest topic fields.");
+    } finally {
+      setSuggestingTopicId(null);
+    }
+  }
+
+  async function suggestEditTopicFields(topicId: string) {
+    const form = editForms[topicId];
+    if (!form) {
+      return;
+    }
+    setSuggestingTopicId(topicId);
+    setError(null);
+    setNotice(null);
+    try {
+      const nextForm = await applySuggestion(form);
+      setEditForms((current) => ({ ...current, [topicId]: nextForm }));
+      setNotice("Draft fields suggested.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to suggest topic fields.");
+    } finally {
+      setSuggestingTopicId(null);
+    }
   }
 
   async function loadMessages(group: AdminGroupOverview) {
@@ -299,22 +396,29 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       setEditingEndTopicId(null);
       setEditForms((current) => ({
         ...current,
-        [topicId]: {
-          closesAt: currentMinimumEndDate,
-          crossPollinationIntervalDays: form.crossPollinationIntervalDays,
-        },
+        [topicId]: { ...form, closesAt: currentMinimumEndDate },
       }));
       return;
     }
+    const trimmedTitle = form.title.trim();
+    if (!trimmedTitle) {
+      setError("Topic title cannot be empty.");
+      return;
+    }
+    const trimmedDescription = form.description.trim();
     void runAction(
       () =>
         updateAdminTopic(apiBaseUrl, adminKey, topicId, {
+          title: trimmedTitle,
+          description: trimmedDescription ? trimmedDescription : null,
           closes_at: toTimezoneAwareIso(form.closesAt),
           cross_pollination_interval_seconds: daysInputToSeconds(
             form.crossPollinationIntervalDays,
           ),
+          group_capacity: parseGroupCapacity(form.groupCapacity),
+          seed_bullets: parseSeedBullets(form.seedBullets),
         }),
-      "Topic schedule updated.",
+      "Topic updated.",
     );
     setEditingEndTopicId(null);
   }
@@ -326,9 +430,14 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       return;
     }
     if (
+      form.title.trim() === topic.title &&
+      form.description.trim() === (topic.description ?? "") &&
       form.closesAt === toLocalInputValue(topic.closes_at) &&
       daysInputToSeconds(form.crossPollinationIntervalDays) ===
-        topic.cross_pollination_interval_seconds
+        topic.cross_pollination_interval_seconds &&
+      parseGroupCapacity(form.groupCapacity) === topic.group_capacity &&
+      JSON.stringify(parseSeedBullets(form.seedBullets)) ===
+        JSON.stringify(topic.seed_bullets ?? [])
     ) {
       setEditingEndTopicId(null);
       return;
@@ -339,10 +448,7 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
       setEditingEndTopicId(null);
       setEditForms((current) => ({
         ...current,
-        [topicId]: {
-          closesAt: currentMinimumEndDate,
-          crossPollinationIntervalDays: form.crossPollinationIntervalDays,
-        },
+        [topicId]: { ...form, closesAt: currentMinimumEndDate },
       }));
       return;
     }
@@ -361,10 +467,14 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
         return {
           ...current,
           [pendingConfirmation.topicId]: {
+            title: topic.title,
+            description: topic.description ?? "",
             closesAt: toLocalInputValue(topic.closes_at),
             crossPollinationIntervalDays: secondsToDaysInput(
               topic.cross_pollination_interval_seconds,
             ),
+            groupCapacity: String(topic.group_capacity),
+            seedBullets: (topic.seed_bullets ?? []).join("\n"),
           },
         };
       });
@@ -445,8 +555,12 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                   setEditForms((current) => ({ ...current, [item.topic.id]: form }))
                 }
                 onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
+                onGenerateCover={() => generateCover(item.topic.id)}
                 onLoadMessages={loadMessages}
+                onSuggestFields={() => void suggestEditTopicFields(item.topic.id)}
                 onUpdate={() => requestUpdateTopic(item.topic.id)}
+                isGeneratingCover={generatingCoverTopicId === item.topic.id}
+                isSuggestingFields={suggestingTopicId === item.topic.id}
               />
             ))}
             <div className="admin-create-topic">
@@ -477,6 +591,14 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                     placeholder="Description"
                     value={topicForm.description}
                   />
+                  <button
+                    className="admin-secondary-button admin-create-suggestion-button"
+                    disabled={suggestingTopicId === "new"}
+                    onClick={() => void suggestCreateTopicFields()}
+                    type="button"
+                  >
+                    {suggestingTopicId === "new" ? "Suggesting..." : "Suggest description + bullets"}
+                  </button>
                   <input
                     onChange={(event) =>
                       setTopicForm((current) => ({ ...current, closesAt: event.target.value }))
@@ -501,6 +623,38 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                       value={topicForm.crossPollinationIntervalDays}
                     />
                   </label>
+                  <label>
+                    Group size
+                    <input
+                      min="1"
+                      onChange={(event) =>
+                        setTopicForm((current) => ({
+                          ...current,
+                          groupCapacity: event.target.value,
+                        }))
+                      }
+                      step="1"
+                      type="number"
+                      value={topicForm.groupCapacity}
+                    />
+                  </label>
+                  <label>
+                    Seed bullets (one per line)
+                    <textarea
+                      onChange={(event) =>
+                        setTopicForm((current) => ({
+                          ...current,
+                          seedBullets: event.target.value,
+                        }))
+                      }
+                      placeholder={
+                        "Pro: faster decisions\nPro: clearer accountability\n" +
+                        "Con: less deliberation\nCon: minority voices drowned out"
+                      }
+                      rows={4}
+                      value={topicForm.seedBullets}
+                    />
+                  </label>
                   <button type="submit">Create</button>
                 </form>
               ) : null}
@@ -521,8 +675,12 @@ export function AdminDashboardView({ apiBaseUrl }: AdminDashboardViewProps) {
                       setEditForms((current) => ({ ...current, [item.topic.id]: form }))
                     }
                     onEditEndStart={() => setEditingEndTopicId(item.topic.id)}
+                    onGenerateCover={() => generateCover(item.topic.id)}
                     onLoadMessages={loadMessages}
+                    onSuggestFields={() => void suggestEditTopicFields(item.topic.id)}
                     onUpdate={() => requestUpdateTopic(item.topic.id)}
+                    isGeneratingCover={generatingCoverTopicId === item.topic.id}
+                    isSuggestingFields={suggestingTopicId === item.topic.id}
                   />
                 ))}
               </>
@@ -552,21 +710,29 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function TopicAdminCard({
   editForm,
+  isGeneratingCover,
   isEditingEnd,
+  isSuggestingFields,
   item,
   minimumEndDate,
   onEditChange,
   onEditEndStart,
+  onGenerateCover,
   onLoadMessages,
+  onSuggestFields,
   onUpdate,
 }: {
   editForm: TopicEndFormState;
+  isGeneratingCover: boolean;
   isEditingEnd: boolean;
+  isSuggestingFields: boolean;
   item: AdminTopicOverview;
   minimumEndDate: string;
   onEditChange: (form: TopicEndFormState) => void;
   onEditEndStart: () => void;
+  onGenerateCover: () => void;
   onLoadMessages: (group: AdminGroupOverview) => void;
+  onSuggestFields: () => void;
   onUpdate: () => void;
 }) {
   function saveOnEnter(event: KeyboardEvent<HTMLInputElement>) {
@@ -581,17 +747,44 @@ function TopicAdminCard({
       <div className="admin-topic-header">
         <div>
           <p className="eyebrow">{item.topic.status}</p>
-          <h2>{item.topic.title}</h2>
-          <p>{item.topic.description ?? "No description set."}</p>
+          {isEditingEnd ? null : (
+            <>
+              <h2>{item.topic.title}</h2>
+              <p>{item.topic.description ?? "No description set."}</p>
+            </>
+          )}
           <div className="admin-end-date">
             {item.topic.status === "closed" ? (
               <p className="admin-muted">
                 Ended: {formatDate(item.topic.closes_at)} · Cross-pollination every{" "}
-                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s)
+                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s) ·{" "}
+                Group size {item.topic.group_capacity}
               </p>
             ) : isEditingEnd ? (
-              <div className="admin-inline-form">
-                <label>
+              <div className="admin-inline-form admin-topic-edit-form">
+                <label className="admin-edit-title-field">
+                  Title
+                  <input
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, title: event.target.value })
+                    }
+                    onKeyDown={saveOnEnter}
+                    type="text"
+                    value={editForm.title}
+                  />
+                </label>
+                <label className="admin-edit-description-field">
+                  Description
+                  <textarea
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, description: event.target.value })
+                    }
+                    placeholder="Add a curiosity hook — one detail that makes participants want to weigh in."
+                    rows={6}
+                    value={editForm.description}
+                  />
+                </label>
+                <label className="admin-edit-date-field">
                   Expected end
                   <input
                     autoFocus
@@ -604,7 +797,7 @@ function TopicAdminCard({
                     value={editForm.closesAt}
                   />
                 </label>
-                <label>
+                <label className="admin-edit-interval-field">
                   Cross-pollination interval (days)
                   <input
                     min="0.01"
@@ -620,14 +813,49 @@ function TopicAdminCard({
                     value={editForm.crossPollinationIntervalDays}
                   />
                 </label>
-                <button onClick={onUpdate} type="button">
-                  Save
-                </button>
+                <label className="admin-edit-capacity-field">
+                  Group size
+                  <input
+                    min="1"
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, groupCapacity: event.target.value })
+                    }
+                    onKeyDown={saveOnEnter}
+                    step="1"
+                    type="number"
+                    value={editForm.groupCapacity}
+                  />
+                </label>
+                <label className="admin-edit-bullets-field">
+                  Seed bullets (one per line)
+                  <textarea
+                    onChange={(event) =>
+                      onEditChange({ ...editForm, seedBullets: event.target.value })
+                    }
+                    placeholder="Pro/con prompts posted into each new group when it spins up."
+                    rows={7}
+                    value={editForm.seedBullets}
+                  />
+                </label>
+                <div className="admin-edit-actions">
+                  <button
+                    className="admin-secondary-button"
+                    disabled={isSuggestingFields}
+                    onClick={onSuggestFields}
+                    type="button"
+                  >
+                    {isSuggestingFields ? "Suggesting..." : "Suggest description + bullets"}
+                  </button>
+                  <button onClick={onUpdate} type="button">
+                    Save
+                  </button>
+                </div>
               </div>
             ) : (
               <p className="admin-muted">
                 Expected end: {formatDate(item.topic.closes_at)} · Cross-pollination every{" "}
-                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s)
+                {secondsToDaysInput(item.topic.cross_pollination_interval_seconds)} day(s) ·{" "}
+                Group size {item.topic.group_capacity}
                 <button
                   aria-label={`Edit topic schedule for ${item.topic.title}`}
                   className="admin-icon-button"
@@ -640,6 +868,25 @@ function TopicAdminCard({
             )}
           </div>
         </div>
+      </div>
+
+      <div className="admin-cover-actions">
+        {item.topic.cover_image_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img alt="Cover preview" className="admin-cover-preview" src={item.topic.cover_image_url} />
+        ) : null}
+        <button
+          className="admin-secondary-button"
+          disabled={isGeneratingCover}
+          onClick={onGenerateCover}
+          type="button"
+        >
+          {isGeneratingCover
+            ? "Generating cover..."
+            : item.topic.cover_image_url
+              ? "Regenerate cover image"
+              : "Generate cover image"}
+        </button>
       </div>
 
       <div className="admin-group-table">
@@ -715,9 +962,9 @@ function ConfirmationDialog({
           title: "Replace active topic?",
         }
       : {
-          body: "Changing the deliberation end date affects when this topic closes and when automatic summarization runs.",
-          confirm: "Change schedule",
-          title: "Change schedule?",
+          body: "Updating this topic will change what participants see immediately, including any new deliberation end date or summarization cadence.",
+          confirm: "Update topic",
+          title: "Update topic?",
         };
 
   return (

@@ -84,19 +84,25 @@ class InMemoryRepository:
             cross_pollination_interval_seconds=payload.cross_pollination_interval_seconds,
             next_cross_pollination_at=now
             + timedelta(seconds=payload.cross_pollination_interval_seconds),
+            group_capacity=payload.group_capacity,
+            seed_bullets=list(payload.seed_bullets),
+            cover_image_url=None,
             created_at=now,
         )
         self.topics[topic.id] = topic
         return topic
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
-        """Update a topic's deliberation end and derived status."""
+        """Update a topic's editable fields and derived status."""
         topic = self.topics.get(topic_id)
         if topic is None:
             return None
-        next_closes_at = (
-            payload.closes_at if "closes_at" in payload.model_fields_set else topic.closes_at
+        fields_set = payload.model_fields_set
+        next_title = payload.title if "title" in fields_set else topic.title
+        next_description = (
+            payload.description if "description" in fields_set else topic.description
         )
+        next_closes_at = payload.closes_at if "closes_at" in fields_set else topic.closes_at
         now = datetime.now(UTC)
         next_status = (
             TopicStatus.ACTIVE
@@ -116,14 +122,37 @@ class InMemoryRepository:
             next_cross_pollination_at = now
         if next_status == TopicStatus.CLOSED:
             next_cross_pollination_at = None
+        next_group_capacity = (
+            payload.group_capacity if payload.group_capacity is not None else topic.group_capacity
+        )
+        next_seed_bullets = (
+            list(payload.seed_bullets) if payload.seed_bullets is not None else topic.seed_bullets
+        )
         updated = topic.model_copy(
             update={
+                "title": next_title,
+                "description": next_description,
                 "closes_at": next_closes_at,
                 "status": next_status,
                 "cross_pollination_interval_seconds": next_interval,
                 "next_cross_pollination_at": next_cross_pollination_at,
+                "group_capacity": next_group_capacity,
+                "seed_bullets": next_seed_bullets,
             },
         )
+        self.topics[topic_id] = updated
+        return updated
+
+    async def set_topic_cover_image_url(
+        self,
+        topic_id: UUID,
+        cover_image_url: str,
+    ) -> Topic | None:
+        """Persist a generated cover image URL for the topic."""
+        topic = self.topics.get(topic_id)
+        if topic is None:
+            return None
+        updated = topic.model_copy(update={"cover_image_url": cover_image_url})
         self.topics[topic_id] = updated
         return updated
 

@@ -13,7 +13,7 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 - Backend: FastAPI on Railway
 - Database: Neon Postgres
 - Bot integration: Telegram Bot API via `python-telegram-bot`
-- Summarization: Anthropic API
+- Summarization: OpenAI API
 
 ## Local setup
 
@@ -35,6 +35,12 @@ The platform routes Telegram users into least-full forum topics inside one Teleg
 
    ```bash
    make apply_schema
+   ```
+
+   To apply only pending migration files to an existing database, run:
+
+   ```bash
+   make apply_migrations
    ```
 
 5. Run the backend:
@@ -90,5 +96,7 @@ pnpm --dir apps/web test
 - Neon project: `CORDA deliberation` (`delicate-cake-88112071`)
 - Railway project: `clever-radiance`
 - Vercel hosts `apps/web` and must define `PUBLIC_API_BASE_URL` and `TELEGRAM_BOT_USERNAME`
+- GitHub Actions validates Neon migrations on pull requests and applies pending migrations
+  to production after merges to `main`.
 
 Operational setup details are documented in [docs/operations/deployment.md](/Users/kevinblin/Code/corda_massively_scalable_deliberative_processes/docs/operations/deployment.md).

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import asyncpg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from openai import AsyncOpenAI
 
 from msdp_api.api.routes_admin import router as admin_router
 from msdp_api.api.routes_public import router as public_router
@@ -18,8 +19,10 @@ from msdp_api.core.config import Settings, get_settings
 from msdp_api.db.migrations import apply_migrations
 from msdp_api.repositories.memory import InMemoryRepository
 from msdp_api.repositories.postgres import PostgresRepository
+from msdp_api.services.cover_image import CoverImageService
 from msdp_api.services.group_assignment import GroupAssignmentService
-from msdp_api.services.summarization import AnthropicSummarizer, SummarizationService, Summarizer
+from msdp_api.services.summarization import OpenAISummarizer, SummarizationService, Summarizer
+from msdp_api.services.topic_suggestion import TopicSuggesterProtocol, TopicSuggestionService
 from msdp_api.telegram.gateway import TelegramBotGateway, TelegramGateway
 from msdp_api.telegram.service import TelegramWebhookService
 
@@ -59,21 +62,31 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     group_assignment_service = GroupAssignmentService(
         repository=repository,
         telegram_gateway=telegram_gateway,
-        group_capacity=settings.group_capacity,
     )
     summarization_service = SummarizationService(
         repository=repository,
-        summarizer=AnthropicSummarizer(
-            api_key=settings.anthropic_api_key,
+        summarizer=OpenAISummarizer(
+            client=AsyncOpenAI(api_key=settings.openai_api_key),
             model=settings.summary_model,
         ),
         telegram_gateway=telegram_gateway,
+    )
+    cover_image_service = CoverImageService(
+        repository=repository,
+        client=AsyncOpenAI(api_key=settings.openai_api_key),
+        model=settings.cover_image_model,
+    )
+    topic_suggestion_service = TopicSuggestionService(
+        client=AsyncOpenAI(api_key=settings.openai_api_key),
+        model=settings.summary_model,
     )
     app.state.settings = settings
     app.state.pool = pool
     app.state.repository = repository
     app.state.group_assignment_service = group_assignment_service
     app.state.summarization_service = summarization_service
+    app.state.cover_image_service = cover_image_service
+    app.state.topic_suggestion_service = topic_suggestion_service
     summary_task = asyncio.create_task(
         _run_due_summarization_loop(
             summarization_service=summarization_service,
@@ -99,6 +112,7 @@ def create_app(
     repository: Repository | None = None,
     telegram_gateway: TelegramGateway | None = None,
     summarizer: Summarizer | None = None,
+    topic_suggestion_service: TopicSuggesterProtocol | None = None,
 ) -> FastAPI:
     """Build the FastAPI application."""
     app = FastAPI(
@@ -125,10 +139,9 @@ def create_app(
         group_assignment_service = GroupAssignmentService(
             repository=runtime_repository,
             telegram_gateway=runtime_gateway,
-            group_capacity=runtime_settings.group_capacity,
         )
-        runtime_summarizer = summarizer or AnthropicSummarizer(
-            api_key=runtime_settings.anthropic_api_key,
+        runtime_summarizer = summarizer or OpenAISummarizer(
+            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
             model=runtime_settings.summary_model,
         )
         app.state.settings = runtime_settings
@@ -138,6 +151,15 @@ def create_app(
             repository=runtime_repository,
             summarizer=runtime_summarizer,
             telegram_gateway=runtime_gateway,
+        )
+        app.state.cover_image_service = CoverImageService(
+            repository=runtime_repository,
+            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
+            model=runtime_settings.cover_image_model,
+        )
+        app.state.topic_suggestion_service = topic_suggestion_service or TopicSuggestionService(
+            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
+            model=runtime_settings.summary_model,
         )
         app.state.telegram_webhook_service = TelegramWebhookService(
             repository=runtime_repository,

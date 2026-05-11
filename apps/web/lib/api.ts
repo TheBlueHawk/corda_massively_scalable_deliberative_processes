@@ -11,6 +11,9 @@ export type TopicListItem = ActiveTopic & {
   status: TopicStatus;
   cross_pollination_interval_seconds: number;
   next_cross_pollination_at: string | null;
+  group_capacity: number;
+  seed_bullets?: string[];
+  cover_image_url: string | null;
   created_at: string;
 };
 
@@ -45,6 +48,11 @@ export type AdminDashboard = {
   topics: AdminTopicOverview[];
   active_topic_id: string | null;
   generated_at: string;
+};
+
+export type TopicSuggestion = {
+  description: string;
+  seed_bullets: string[];
 };
 
 export type AdminThreadMessage = {
@@ -140,6 +148,8 @@ export async function createAdminTopic(
     description?: string | null;
     closes_at?: string | null;
     cross_pollination_interval_seconds?: number;
+    group_capacity?: number;
+    seed_bullets?: string[];
   },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, "/admin/topics", {
@@ -152,11 +162,43 @@ export async function updateAdminTopic(
   apiBaseUrl: string,
   adminKey: string,
   topicId: string,
-  payload: { closes_at?: string | null; cross_pollination_interval_seconds?: number },
+  payload: {
+    title?: string;
+    description?: string | null;
+    closes_at?: string | null;
+    cross_pollination_interval_seconds?: number;
+    group_capacity?: number;
+    seed_bullets?: string[];
+  },
 ): Promise<void> {
   await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function suggestAdminTopicFields(
+  apiBaseUrl: string,
+  adminKey: string,
+  payload: {
+    title: string;
+    description?: string | null;
+    seed_bullets?: string[];
+  },
+): Promise<TopicSuggestion> {
+  return adminFetch<TopicSuggestion>(apiBaseUrl, adminKey, "/admin/topics/suggest", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function generateAdminTopicCover(
+  apiBaseUrl: string,
+  adminKey: string,
+  topicId: string,
+): Promise<void> {
+  await adminFetch(apiBaseUrl, adminKey, `/admin/topics/${topicId}/generate-cover`, {
+    method: "POST",
   });
 }
 

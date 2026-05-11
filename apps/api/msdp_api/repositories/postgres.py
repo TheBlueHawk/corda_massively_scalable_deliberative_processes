@@ -30,6 +30,9 @@ def _row_to_topic(row: asyncpg.Record) -> Topic:
         closes_at=row["closes_at"],
         cross_pollination_interval_seconds=row["cross_pollination_interval_seconds"],
         next_cross_pollination_at=row["next_cross_pollination_at"],
+        group_capacity=row["group_capacity"],
+        seed_bullets=list(row["seed_bullets"]),
+        cover_image_url=row["cover_image_url"],
         created_at=row["created_at"],
     )
 
@@ -89,6 +92,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -110,6 +116,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE id = $1
@@ -129,6 +138,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             ORDER BY created_at DESC
@@ -148,6 +160,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -170,6 +185,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
             FROM topics
             WHERE status = 'active'
@@ -191,9 +209,12 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
             )
-            VALUES ($1, $2, 'active', $3, $4, $5, $6)
+            VALUES ($1, $2, 'active', $3, $4, $5, $6, $7, NULL, $8)
             RETURNING
                 id,
                 title,
@@ -202,6 +223,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
         """
         now = datetime.now(UTC)
@@ -213,6 +237,8 @@ class PostgresRepository:
                 payload.closes_at,
                 payload.cross_pollination_interval_seconds,
                 now + timedelta(seconds=payload.cross_pollination_interval_seconds),
+                payload.group_capacity,
+                payload.seed_bullets,
                 now,
             )
         if row is None:
@@ -221,13 +247,16 @@ class PostgresRepository:
         return _row_to_topic(row)
 
     async def update_topic(self, topic_id: UUID, payload: TopicUpdate) -> Topic | None:
-        """Update a topic's deliberation end and derived status."""
+        """Update a topic's editable fields and derived status."""
         existing = await self.get_topic(topic_id)
         if existing is None:
             return None
-        next_closes_at = (
-            payload.closes_at if "closes_at" in payload.model_fields_set else existing.closes_at
+        fields_set = payload.model_fields_set
+        next_title = payload.title if "title" in fields_set else existing.title
+        next_description = (
+            payload.description if "description" in fields_set else existing.description
         )
+        next_closes_at = payload.closes_at if "closes_at" in fields_set else existing.closes_at
         now = datetime.now(UTC)
         next_status = (
             TopicStatus.ACTIVE
@@ -247,13 +276,25 @@ class PostgresRepository:
             next_cross_pollination_at = now
         if next_status == TopicStatus.CLOSED:
             next_cross_pollination_at = None
+        next_group_capacity = (
+            payload.group_capacity
+            if payload.group_capacity is not None
+            else existing.group_capacity
+        )
+        next_seed_bullets = (
+            payload.seed_bullets if payload.seed_bullets is not None else existing.seed_bullets
+        )
         query = """
             UPDATE topics
             SET
-                closes_at = $2,
-                status = $3,
-                cross_pollination_interval_seconds = $4,
-                next_cross_pollination_at = $5
+                title = $2,
+                description = $3,
+                closes_at = $4,
+                status = $5,
+                cross_pollination_interval_seconds = $6,
+                next_cross_pollination_at = $7,
+                group_capacity = $8,
+                seed_bullets = $9
             WHERE id = $1
             RETURNING
                 id,
@@ -263,17 +304,51 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
         """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 query,
                 topic_id,
+                next_title,
+                next_description,
                 next_closes_at,
                 next_status.value,
                 next_interval,
                 next_cross_pollination_at,
+                next_group_capacity,
+                next_seed_bullets,
             )
+        return _row_to_topic(row) if row else None
+
+    async def set_topic_cover_image_url(
+        self,
+        topic_id: UUID,
+        cover_image_url: str,
+    ) -> Topic | None:
+        """Persist a generated cover image URL for the topic."""
+        query = """
+            UPDATE topics
+            SET cover_image_url = $2
+            WHERE id = $1
+            RETURNING
+                id,
+                title,
+                description,
+                status,
+                closes_at,
+                cross_pollination_interval_seconds,
+                next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
+                created_at
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, topic_id, cover_image_url)
         return _row_to_topic(row) if row else None
 
     async def schedule_next_cross_pollination(
@@ -294,6 +369,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
         """
         async with self._pool.acquire() as conn:
@@ -314,6 +392,9 @@ class PostgresRepository:
                 closes_at,
                 cross_pollination_interval_seconds,
                 next_cross_pollination_at,
+                group_capacity,
+                seed_bullets,
+                cover_image_url,
                 created_at
         """
         async with self._pool.acquire() as conn:

@@ -12,10 +12,11 @@ class Settings(BaseSettings):
     database_url: str = Field(alias="DATABASE_URL")
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")
     telegram_supergroup_id: int = Field(alias="TELEGRAM_SUPERGROUP_ID")
-    anthropic_api_key: str = Field(alias="ANTHROPIC_API_KEY")
     x_admin_key: str = Field(alias="X_ADMIN_KEY")
     telegram_bot_username: str = Field(alias="TELEGRAM_BOT_USERNAME")
-    summary_model: str = Field(default="claude-haiku-4-5-20251001", alias="SUMMARY_MODEL")
+    openai_api_key: str = Field(alias="OPENAI_API_KEY")
+    summary_model: str = Field(default="gpt-5-mini", alias="SUMMARY_MODEL")
+    cover_image_model: str = Field(default="gpt-image-1-mini", alias="COVER_IMAGE_MODEL")
     group_capacity: int = Field(default=8, alias="GROUP_CAPACITY")
     summary_check_interval_seconds: int = Field(
         default=300,

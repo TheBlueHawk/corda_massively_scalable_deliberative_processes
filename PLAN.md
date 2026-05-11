@@ -7,6 +7,7 @@
 ## Project Overview
 
 A minimalist deliberation platform that:
+
 1. Shows a topic on a website
 2. Assigns users to parallel Telegram discussion groups (via forum topics)
 3. Optionally summarizes each group's conversation and displays results on the website
@@ -23,18 +24,18 @@ No login. No cross-group idea routing. No complex NLP. Ship a working thing firs
 | Backend       | FastAPI (Python)        | Railway   |
 | Database      | Neon Postgres           | Neon      |
 | Bot           | python-telegram-bot v20 | Railway   |
-| Summarization | Claude API              | Anthropic |
+| Summarization | OpenAI API              | OpenAI    |
 
 ---
 
 ## Architecture
 
-```
+```text
 User → Next.js frontend
          ↓ deep link to Telegram bot
       Telegram Bot ←→ FastAPI backend ←→ Neon Postgres
                               ↓ (cron)
-                       Summarization job → Claude API
+                       Summarization job → OpenAI API
                               ↓
                        Neon (summaries table)
                               ↑
@@ -43,7 +44,7 @@ User → Next.js frontend
 
 ### User Join Flow
 
-```
+```text
 1. User visits website → clicks "Join a Group"
 2. Redirected to t.me/corda_bot?start=<topic_id>
 3. Telegram opens the bot
@@ -111,15 +112,19 @@ CREATE TABLE summaries (
 ## API Endpoints (FastAPI)
 
 ### Webhook (Telegram → Backend)
-```
+
+```http
 POST /webhook/telegram
 ```
+
 Single entry point for all bot events. Handles:
+
 - `/start <topic_id>` — upsert user, assign group, send invite link
 - Chat member updates (user joined/left)
 
 ### Frontend-facing (public, read-only)
-```
+
+```http
 GET /topics/active
     → { id, title, description, closes_at }
 
@@ -128,9 +133,10 @@ GET /topics/{topic_id}/summaries
 ```
 
 ### Admin (protected by X-Admin-Key header)
-```
+
+```http
 POST /admin/summarize/{topic_id}
-    → fetches Telegram history per group, calls Claude API, stores summaries
+    → fetches Telegram history per group, calls OpenAI API, stores summaries
     → triggered by Railway cron or manually
 ```
 
@@ -142,6 +148,7 @@ POST /admin/summarize/{topic_id}
 ## Telegram Bot Setup
 
 ### Prerequisites
+
 - A regular Telegram account (no special account needed)
 - python-telegram-bot==20.7
 
@@ -151,13 +158,15 @@ pip install python-telegram-bot==20.7
 
 ### One-time Setup Steps
 
-**1. Create the bot via @BotFather**
+#### 1. Create the bot via @BotFather
+
 - Open Telegram → search @BotFather → /newbot
 - Save the token: looks like `7743920481:AAF_xK...`
 - Run `/setprivacy` → Disabled (bot must read group messages)
 - Run `/setjoingroups` → Enabled
 
-**2. Create the Supergroup**
+#### 2. Create the Supergroup
+
 - Telegram → New Group → add one member (required, can remove after)
 - Group Settings → Edit → enable **Topics** (converts to forum supergroup)
 - Add your bot as Admin with permissions:
@@ -166,32 +175,37 @@ pip install python-telegram-bot==20.7
   - Invite users via link ✅
   - Delete messages ✅
 
-**3. Get the Supergroup ID**
+#### 3. Get the Supergroup ID
+
 - Add @userinfobot to the group temporarily — it prints the chat ID
 - Looks like `-1001234567890` (note the negative sign)
 - Remove @userinfobot after
 
-**4. Register webhook (production)**
+#### 4. Register webhook (production)
+
 ```bash
 curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-app.railway.app/webhook/telegram"
 ```
 
 ### Environment Variables
-```
+
+```dotenv
 TELEGRAM_BOT_TOKEN=7743920481:AAF_xK...
 TELEGRAM_SUPERGROUP_ID=-1001234567890
 DATABASE_URL=postgresql://...  # Neon connection string
-CLAUDE_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 X_ADMIN_KEY=some-secret-string
 ```
 
 ### Bot Modes
+
 - **Local dev**: use `app.run_polling()` — no public URL needed
 - **Production**: use `app.run_webhook()` — requires Railway public URL
 
 ### Key Bot Logic
 
 **Creating a forum topic (deliberation cell) programmatically:**
+
 ```python
 topic = await bot.create_forum_topic(
     chat_id=TELEGRAM_SUPERGROUP_ID,
@@ -201,6 +215,7 @@ topic = await bot.create_forum_topic(
 ```
 
 **Sending a message into a specific topic:**
+
 ```python
 await bot.send_message(
     chat_id=TELEGRAM_SUPERGROUP_ID,
@@ -210,6 +225,7 @@ await bot.send_message(
 ```
 
 **Creating an invite link:**
+
 ```python
 link = await bot.create_chat_invite_link(
     chat_id=TELEGRAM_SUPERGROUP_ID,
@@ -220,6 +236,7 @@ link = await bot.create_chat_invite_link(
 ```
 
 **Fetching message history for summarization:**
+
 ```python
 # Use bot.get_chat_history or iterate updates filtered by message_thread_id
 # Bot must have been present in the group since messages were sent
@@ -233,11 +250,13 @@ Triggered by cron (Railway) or `POST /admin/summarize/{topic_id}`:
 
 1. Fetch all groups for topic from DB
 2. For each group, fetch message history from Telegram API (filter by `thread_id`)
-3. Call Claude API with prompt:
-   ```
+3. Call OpenAI API with prompt:
+
+   ```text
    Summarize the key points of agreement and disagreement from this deliberation.
    Be concise and neutral. Output in 3-5 bullet points.
    ```
+
 4. Store result in `summaries` table
 5. Frontend `/results` page reads from `summaries`
 
@@ -251,7 +270,8 @@ Triggered by cron (Railway) or `POST /admin/summarize/{topic_id}`:
 | `/results` | Show per-group summaries after deliberation closes          |
 
 The join button is simply:
-```
+
+```text
 https://t.me/corda_bot?start=<topic_id>
 ```
 
@@ -275,12 +295,14 @@ No session, no cookies, no auth state on the frontend.
 ## Project Scope (v1)
 
 **In scope:**
+
 - Single active topic at a time
 - Automatic group assignment via Telegram forum topics
 - Optional end-of-deliberation summarization
 - Public results page
 
 **Explicitly out of scope for v1:**
+
 - Cross-group idea routing or discursive stratification
 - User profiles or authentication
 - Real-time updates
