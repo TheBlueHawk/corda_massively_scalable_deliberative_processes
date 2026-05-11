@@ -12,6 +12,29 @@
    - `summaries`
    - `thread_messages`
 
+### GitHub migration automation
+
+The Neon GitHub workflows validate migrations on each pull request and apply pending
+migrations to the production Neon branch after changes merge to `main`.
+
+Configure these repository settings in GitHub Actions:
+
+- Secret `NEON_API_KEY`: Neon API key used by Neon branch actions.
+- Variable `NEON_PROJECT_ID`: Neon project ID.
+- Secret `DATABASE_URL`: direct production Neon connection string for applying migrations.
+
+The pull-request workflow creates a temporary Neon branch, runs:
+
+```bash
+uv run python apps/api/scripts/apply_migrations.py
+```
+
+against that preview branch, and posts a schema diff comment. The production workflow runs
+the same migration command on pushes to `main` when SQL migration or migration-runner files
+change.
+
+Migration files are recorded in the `schema_migrations` table after successful application.
+
 ## Railway
 
 Deploy the FastAPI service from this repo with:

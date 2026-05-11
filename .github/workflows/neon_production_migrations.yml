@@ -1,0 +1,38 @@
+name: Neon Production Migrations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/api/sql/**"
+      - "apps/api/scripts/apply_migrations.py"
+      - "apps/api/msdp_api/db/migrations.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/neon_production_migrations.yml"
+
+concurrency:
+  group: neon-production-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply_migrations:
+    name: Apply migrations to production Neon
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: uv run python apps/api/scripts/apply_migrations.py
