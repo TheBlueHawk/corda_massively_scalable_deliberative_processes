@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
+import sys
 
 import asyncpg
 from dotenv import load_dotenv
 
-from msdp_api.db.migrations import apply_migrations
+API_ROOT = Path(__file__).resolve().parents[1]
+if str(API_ROOT) not in sys.path:
+    sys.path.insert(0, str(API_ROOT))
+
+from msdp_api.db.migrations import apply_migrations  # noqa: E402
 
 
 def _get_database_url() -> str:
