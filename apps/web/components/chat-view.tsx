@@ -5,6 +5,7 @@ import type { ActiveTopic, ChatGroup, ChatMessage } from "@/lib/api";
 import {
   createParticipant,
   getChatStreamUrl,
+  getGroupMessages,
   getMyGroup,
   joinTopic,
   sendChatMessage,
@@ -56,7 +57,8 @@ export function ChatView({ activeTopic }: ChatViewProps) {
       try {
         const group = await getMyGroup(activeTopic.id, storedId);
         if (group) {
-          enterChat(storedId, group);
+          const messages = await getGroupMessages(group.id, storedId);
+          enterChat(storedId, group, messages);
         } else {
           setPhase({ kind: "ready", topicId: activeTopic.id });
         }
