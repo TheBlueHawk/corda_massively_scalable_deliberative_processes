@@ -256,14 +256,17 @@ async def stream_messages(
     group_id: UUID,
     request: Request,
     repository: Annotated[Repository, Depends(get_repository)],
-    x_participant_id: Annotated[str | None, Header(alias="X-Participant-Id")] = None,
+    participant_id: str | None = None,
 ) -> StreamingResponse:
     """SSE stream of new messages for a group.
 
     Yields ``data: <json>`` events for each new message and ``: heartbeat``
     comments every 25 seconds to keep the connection alive.
+
+    ``participant_id`` is accepted as a query parameter because the browser
+    EventSource API does not support custom request headers.
     """
-    participant = await _resolve_participant(repository, x_participant_id)
+    participant = await _resolve_participant(repository, participant_id)
     topic_id = await _require_group(repository, group_id)
     member_group = await repository.get_participant_group_for_topic(participant.id, topic_id)
     if member_group is None or member_group.id != group_id:
