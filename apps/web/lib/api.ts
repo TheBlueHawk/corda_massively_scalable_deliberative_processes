@@ -67,9 +67,9 @@ export type AdminThreadMessage = {
 };
 
 function getApiBaseUrl(): string {
-  const apiBaseUrl = process.env.PUBLIC_API_BASE_URL;
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!apiBaseUrl) {
-    throw new Error("Missing PUBLIC_API_BASE_URL environment variable.");
+    throw new Error("Missing NEXT_PUBLIC_API_BASE_URL environment variable.");
   }
   return apiBaseUrl.replace(/\/$/, "");
 }
@@ -231,4 +231,110 @@ export async function fetchAdminGroupMessages(
     adminKey,
     `/admin/groups/${groupId}/messages`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Web chat API
+// ---------------------------------------------------------------------------
+
+export type ChatParticipant = {
+  id: string;
+  display_name: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  group_id: string;
+  participant_id: string | null;
+  display_name: string;
+  text: string;
+  sent_at: string;
+  is_moderator: boolean;
+};
+
+export type ChatGroup = {
+  id: string;
+  topic_id: string;
+  telegram_topic_name: string;
+  capacity: number;
+  member_count: number;
+};
+
+export type ChatJoinResponse = {
+  group: ChatGroup;
+  messages: ChatMessage[];
+  already_member: boolean;
+};
+
+async function chatFetch(
+  path: string,
+  participantId?: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const apiBase = getApiBaseUrl();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string>),
+  };
+  if (participantId) {
+    headers["X-Participant-Id"] = participantId;
+  }
+  return fetch(`${apiBase}${path}`, { ...init, headers });
+}
+
+export async function createParticipant(displayName: string): Promise<ChatParticipant> {
+  const response = await chatFetch("/chat/participants", undefined, {
+    method: "POST",
+    body: JSON.stringify({ display_name: displayName }),
+  });
+  if (!response.ok) throw new Error("Failed to create participant.");
+  return (await response.json()) as ChatParticipant;
+}
+
+export async function getMyGroup(
+  topicId: string,
+  participantId: string,
+): Promise<ChatGroup | null> {
+  const response = await chatFetch(`/chat/topics/${topicId}/my-group`, participantId);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Failed to fetch group.");
+  return (await response.json()) as ChatGroup;
+}
+
+export async function joinTopic(
+  topicId: string,
+  participantId: string,
+): Promise<ChatJoinResponse> {
+  const response = await chatFetch(`/chat/topics/${topicId}/join`, participantId, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) throw new Error("Failed to join topic.");
+  return (await response.json()) as ChatJoinResponse;
+}
+
+export async function sendChatMessage(
+  groupId: string,
+  participantId: string,
+  text: string,
+): Promise<ChatMessage> {
+  const response = await chatFetch(`/chat/groups/${groupId}/messages`, participantId, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) throw new Error("Failed to send message.");
+  return (await response.json()) as ChatMessage;
+}
+
+export async function getGroupMessages(
+  groupId: string,
+  participantId: string,
+): Promise<ChatMessage[]> {
+  const response = await chatFetch(`/chat/groups/${groupId}/messages`, participantId);
+  if (!response.ok) throw new Error("Failed to fetch messages.");
+  return (await response.json()) as ChatMessage[];
+}
+
+export function getChatStreamUrl(groupId: string): string {
+  return `${getApiBaseUrl()}/chat/groups/${groupId}/stream`;
 }
