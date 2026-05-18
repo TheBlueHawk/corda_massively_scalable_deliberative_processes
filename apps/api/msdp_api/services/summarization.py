@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from msdp_api.repositories.protocols import Repository
-    from msdp_api.telegram.gateway import TelegramGateway
 
 SUMMARY_PROMPT = (
     "Summarize the key points of agreement and disagreement from this deliberation. "
@@ -109,12 +108,10 @@ class SummarizationService:
         self,
         repository: Repository,
         summarizer: Summarizer,
-        telegram_gateway: TelegramGateway | None = None,
     ) -> None:
         """Initialize the service."""
         self._repository = repository
         self._summarizer = summarizer
-        self._telegram_gateway = telegram_gateway
 
     async def summarize_topic(self, topic_id: UUID) -> SummarizationResult:
         """Generate summaries for all groups in the topic."""
@@ -149,7 +146,7 @@ class SummarizationService:
         groups = list(await self._repository.list_groups_for_topic(topic_id))
         summaries = list(await self._repository.list_summaries_for_topic(topic_id))
         comments_posted = 0
-        if self._telegram_gateway is not None and len(summaries) > 1:
+        if len(summaries) > 1:
             comments_posted = await self._post_cross_pollination_comments(groups, summaries)
         cutoff = now or datetime.now(UTC)
         next_run = cutoff + timedelta(seconds=topic.cross_pollination_interval_seconds)
@@ -166,9 +163,7 @@ class SummarizationService:
         groups: list[Group],
         summaries: list[Summary],
     ) -> int:
-        """Post generated moderator comments to each group with comparable summaries."""
-        if self._telegram_gateway is None:
-            return 0
+        """Generate moderator comments and store them as chat messages in each group."""
         summaries_by_group = {summary.group_id: summary for summary in summaries}
         posted = 0
         for group in groups:
@@ -191,7 +186,13 @@ class SummarizationService:
             )
             if not comment:
                 continue
-            await self._telegram_gateway.send_moderator_comment(group.thread_id, comment)
+            await self._repository.store_web_message(
+                group_id=group.id,
+                participant_id=None,
+                display_name="Moderator",
+                text=comment,
+                is_moderator=True,
+            )
             posted += 1
         return posted
 

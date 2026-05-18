@@ -10,6 +10,7 @@ import asyncpg
 
 from msdp_api.db.models import (
     Group,
+    Participant,
     Summary,
     ThreadMessage,
     Topic,
@@ -63,14 +64,17 @@ def _row_to_summary(row: asyncpg.Record) -> Summary:
 def _row_to_message(row: asyncpg.Record) -> ThreadMessage:
     """Convert a thread message row into a model."""
     return ThreadMessage(
+        id=row["id"],
         message_id=row["message_id"],
         thread_id=row["thread_id"],
         group_id=row["group_id"],
+        participant_id=row["participant_id"],
         telegram_user_id=row["telegram_user_id"],
         username=row["username"],
         first_name=row["first_name"],
         text=row["text"],
         sent_at=row["sent_at"],
+        is_moderator=row["is_moderator"],
     )
 
 
@@ -429,8 +433,8 @@ class PostgresRepository:
     async def create_group(
         self,
         topic_id: UUID,
-        thread_id: int,
-        invite_link: str,
+        thread_id: int | None,
+        invite_link: str | None,
         capacity: int,
         telegram_topic_name: str,
     ) -> Group:
@@ -516,7 +520,7 @@ class PostgresRepository:
             await conn.execute(query, group_id)
 
     async def store_thread_message(self, message: ThreadMessage) -> None:
-        """Store a thread message."""
+        """Store a thread message (Telegram-originated)."""
         query = """
             INSERT INTO thread_messages (
                 message_id,
@@ -529,7 +533,9 @@ class PostgresRepository:
                 sent_at
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (message_id, thread_id) DO NOTHING
+            ON CONFLICT (message_id, thread_id)
+            WHERE message_id IS NOT NULL AND thread_id IS NOT NULL
+            DO NOTHING
         """
         async with self._pool.acquire() as conn:
             await conn.execute(
@@ -548,17 +554,20 @@ class PostgresRepository:
         """Return stored messages for a group."""
         query = """
             SELECT
+                id,
                 message_id,
                 thread_id,
                 group_id,
+                participant_id,
                 telegram_user_id,
                 username,
                 first_name,
                 text,
-                sent_at
+                sent_at,
+                is_moderator
             FROM thread_messages
             WHERE group_id = $1
-            ORDER BY sent_at ASC, message_id ASC
+            ORDER BY sent_at ASC, id ASC
         """
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(query, group_id)
@@ -592,3 +601,112 @@ class PostgresRepository:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(query, topic_id)
         return [_row_to_summary(row) for row in rows]
+
+    async def create_participant(self, display_name: str) -> Participant:
+        """Create a new web participant."""
+        query = """
+            INSERT INTO participants (display_name)
+            VALUES ($1)
+            RETURNING id, display_name, created_at
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, display_name)
+        if row is None:
+            msg = "Participant insert returned no row."
+            raise RuntimeError(msg)
+        return Participant(
+            id=row["id"], display_name=row["display_name"], created_at=row["created_at"]
+        )
+
+    async def get_participant(self, participant_id: UUID) -> Participant | None:
+        """Return a participant by id."""
+        query = "SELECT id, display_name, created_at FROM participants WHERE id = $1"
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, participant_id)
+        if row is None:
+            return None
+        return Participant(
+            id=row["id"], display_name=row["display_name"], created_at=row["created_at"]
+        )
+
+    async def get_participant_group_for_topic(
+        self,
+        participant_id: UUID,
+        topic_id: UUID,
+    ) -> Group | None:
+        """Return the group the participant belongs to for the given topic."""
+        query = """
+            SELECT g.id, g.topic_id, g.thread_id, g.invite_link,
+                   g.capacity, g.member_count, g.telegram_topic_name
+            FROM groups g
+            JOIN memberships m ON m.group_id = g.id
+            WHERE m.participant_id = $1
+              AND g.topic_id = $2
+            LIMIT 1
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, participant_id, topic_id)
+        return _row_to_group(row) if row else None
+
+    async def get_group(self, group_id: UUID) -> Group | None:
+        """Return a group by id."""
+        query = """
+            SELECT id, topic_id, thread_id, invite_link, capacity,
+                   member_count, telegram_topic_name
+            FROM groups WHERE id = $1
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query, group_id)
+        return _row_to_group(row) if row else None
+
+    async def create_web_membership(self, participant_id: UUID, group_id: UUID) -> bool:
+        """Insert web membership when missing; returns True if created."""
+        query = """
+            INSERT INTO memberships (participant_id, group_id)
+            VALUES ($1, $2)
+            ON CONFLICT (participant_id, group_id)
+            WHERE participant_id IS NOT NULL
+            DO NOTHING
+        """
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(query, participant_id, group_id)
+        return result.endswith("1")
+
+    async def store_web_message(
+        self,
+        group_id: UUID,
+        participant_id: UUID | None,
+        display_name: str,
+        text: str,
+        *,
+        is_moderator: bool = False,
+    ) -> ThreadMessage:
+        """Persist a web-originated chat message and return the stored record."""
+        query = """
+            INSERT INTO thread_messages
+                (group_id, participant_id, first_name, text, sent_at, is_moderator)
+            VALUES ($1, $2, $3, $4, now(), $5)
+            RETURNING id, message_id, thread_id, group_id, participant_id,
+                      telegram_user_id, username, first_name, text, sent_at, is_moderator
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                query, group_id, participant_id, display_name, text, is_moderator
+            )
+        if row is None:
+            msg = "Message insert returned no row."
+            raise RuntimeError(msg)
+        return _row_to_message(row)
+
+    async def list_messages_for_group(self, group_id: UUID) -> Sequence[ThreadMessage]:
+        """Return all messages for a group ordered by sent_at."""
+        query = """
+            SELECT id, message_id, thread_id, group_id, participant_id,
+                   telegram_user_id, username, first_name, text, sent_at, is_moderator
+            FROM thread_messages
+            WHERE group_id = $1
+            ORDER BY sent_at ASC, id ASC
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, group_id)
+        return [_row_to_message(row) for row in rows]

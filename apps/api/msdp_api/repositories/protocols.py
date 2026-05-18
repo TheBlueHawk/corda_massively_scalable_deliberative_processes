@@ -7,7 +7,16 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from msdp_api.db.models import Group, Summary, ThreadMessage, Topic, TopicCreate, TopicUpdate, User
+from msdp_api.db.models import (
+    Group,
+    Participant,
+    Summary,
+    ThreadMessage,
+    Topic,
+    TopicCreate,
+    TopicUpdate,
+    User,
+)
 
 
 class Repository(Protocol):
@@ -48,8 +57,8 @@ class Repository(Protocol):
     async def create_group(
         self,
         topic_id: UUID,
-        thread_id: int,
-        invite_link: str,
+        thread_id: int | None,
+        invite_link: str | None,
         capacity: int,
         telegram_topic_name: str,
     ) -> Group: ...
@@ -79,3 +88,29 @@ class Repository(Protocol):
     async def upsert_summary(self, group_id: UUID, content: str) -> Summary: ...
 
     async def list_summaries_for_topic(self, topic_id: UUID) -> Sequence[Summary]: ...
+
+    async def create_participant(self, display_name: str) -> Participant: ...
+
+    async def get_participant(self, participant_id: UUID) -> Participant | None: ...
+
+    async def get_participant_group_for_topic(
+        self,
+        participant_id: UUID,
+        topic_id: UUID,
+    ) -> Group | None: ...
+
+    async def get_group(self, group_id: UUID) -> Group | None: ...
+
+    async def create_web_membership(self, participant_id: UUID, group_id: UUID) -> bool: ...
+
+    async def store_web_message(
+        self,
+        group_id: UUID,
+        participant_id: UUID | None,
+        display_name: str,
+        text: str,
+        *,
+        is_moderator: bool = False,
+    ) -> ThreadMessage: ...
+
+    async def list_messages_for_group(self, group_id: UUID) -> Sequence[ThreadMessage]: ...

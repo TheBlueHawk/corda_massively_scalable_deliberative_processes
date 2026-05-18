@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from msdp_api.db.models import (
     Group,
+    Participant,
     Summary,
     ThreadMessage,
     Topic,
@@ -29,6 +30,8 @@ class InMemoryRepository:
         self.memberships: set[tuple[int, UUID]] = set()
         self.messages: dict[UUID, list[ThreadMessage]] = defaultdict(list)
         self.summaries: dict[UUID, Summary] = {}
+        self.participants: dict[UUID, Participant] = {}
+        self.web_memberships: set[tuple[UUID, UUID]] = set()
 
     async def get_active_topic(self) -> Topic | None:
         """Return the first active topic ordered by creation time."""
@@ -194,8 +197,8 @@ class InMemoryRepository:
     async def create_group(
         self,
         topic_id: UUID,
-        thread_id: int,
-        invite_link: str,
+        thread_id: int | None,
+        invite_link: str | None,
         capacity: int,
         telegram_topic_name: str,
     ) -> Group:
@@ -247,13 +250,83 @@ class InMemoryRepository:
     async def store_thread_message(self, message: ThreadMessage) -> None:
         """Persist a captured thread message."""
         bucket = self.messages[message.group_id]
-        if any(item.message_id == message.message_id for item in bucket):
+        if message.message_id is not None and any(
+            item.message_id == message.message_id for item in bucket
+        ):
             return
         bucket.append(message)
 
     async def list_thread_messages(self, group_id: UUID) -> list[ThreadMessage]:
         """Return stored thread messages for a group."""
         return list(self.messages[group_id])
+
+    async def create_participant(self, display_name: str) -> Participant:
+        """Create a new web participant."""
+        participant = Participant(
+            id=uuid4(),
+            display_name=display_name,
+            created_at=datetime.now(UTC),
+        )
+        self.participants[participant.id] = participant
+        return participant
+
+    async def get_participant(self, participant_id: UUID) -> Participant | None:
+        """Return a participant by id."""
+        return self.participants.get(participant_id)
+
+    async def get_participant_group_for_topic(
+        self,
+        participant_id: UUID,
+        topic_id: UUID,
+    ) -> Group | None:
+        """Return the group the participant belongs to for the given topic."""
+        member_group_ids = {
+            group_id for (pid, group_id) in self.web_memberships if pid == participant_id
+        }
+        for group in self.groups.values():
+            if group.topic_id == topic_id and group.id in member_group_ids:
+                return group
+        return None
+
+    async def get_group(self, group_id: UUID) -> Group | None:
+        """Return a group by id."""
+        return self.groups.get(group_id)
+
+    async def create_web_membership(self, participant_id: UUID, group_id: UUID) -> bool:
+        """Insert web membership when missing; returns True if created."""
+        key = (participant_id, group_id)
+        if key in self.web_memberships:
+            return False
+        self.web_memberships.add(key)
+        return True
+
+    async def store_web_message(
+        self,
+        group_id: UUID,
+        participant_id: UUID | None,
+        display_name: str,
+        text: str,
+        *,
+        is_moderator: bool = False,
+    ) -> ThreadMessage:
+        """Persist a web-originated chat message."""
+        message = ThreadMessage(
+            id=uuid4(),
+            group_id=group_id,
+            participant_id=participant_id,
+            first_name=display_name,
+            text=text,
+            sent_at=datetime.now(UTC),
+            is_moderator=is_moderator,
+        )
+        self.messages[group_id].append(message)
+        return message
+
+    async def list_messages_for_group(self, group_id: UUID) -> list[ThreadMessage]:
+        """Return all messages for a group ordered by sent_at."""
+        messages = list(self.messages[group_id])
+        messages.sort(key=lambda m: (m.sent_at, m.id))
+        return messages
 
     async def upsert_summary(self, group_id: UUID, content: str) -> Summary:
         """Create or update a summary."""

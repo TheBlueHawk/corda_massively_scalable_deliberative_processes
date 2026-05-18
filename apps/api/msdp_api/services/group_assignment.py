@@ -1,17 +1,15 @@
-"""Group assignment logic."""
+"""Group assignment logic (kept for backward-compatibility; see web_group_assignment.py)."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from msdp_api.db.models import GroupAssignmentResult, Topic, User
-from msdp_api.telegram.gateway import pick_forum_icon_color
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from msdp_api.repositories.protocols import Repository
-    from msdp_api.telegram.gateway import TelegramGateway
 
 
 def _build_seed_message(bullets: list[str]) -> str:
@@ -26,11 +24,9 @@ class GroupAssignmentService:
     def __init__(
         self,
         repository: Repository,
-        telegram_gateway: TelegramGateway,
     ) -> None:
         """Initialize the service."""
         self._repository = repository
-        self._telegram_gateway = telegram_gateway
 
     async def assign_user_to_topic(
         self,
@@ -42,30 +38,29 @@ class GroupAssignmentService:
         await self._repository.upsert_user(user)
         groups = sorted(
             await self._repository.list_groups_for_topic(topic_id),
-            key=lambda item: (item.member_count, item.thread_id),
+            key=lambda item: (item.member_count, item.thread_id or 0),
         )
         group = next((item for item in groups if item.member_count < item.capacity), None)
         was_created = False
         if group is None:
-            telegram_group = await self._telegram_gateway.create_group(
-                ordinal=len(groups) + 1,
-                capacity=topic.group_capacity,
-                topic_title=topic.title,
-                icon_color=pick_forum_icon_color(str(topic.id)),
-            )
+            ordinal = len(groups) + 1
+            group_name = f"{topic.title[:80].rstrip()} · Group {ordinal}"
             group = await self._repository.create_group(
                 topic_id=topic_id,
-                thread_id=telegram_group.thread_id,
-                invite_link=telegram_group.invite_link,
+                thread_id=None,
+                invite_link=None,
                 capacity=topic.group_capacity,
-                telegram_topic_name=telegram_group.topic_name,
+                telegram_topic_name=group_name,
             )
             was_created = True
             if topic.seed_bullets:
                 seed_message = _build_seed_message(topic.seed_bullets)
-                await self._telegram_gateway.send_moderator_comment(
-                    thread_id=group.thread_id,
+                await self._repository.store_web_message(
+                    group_id=group.id,
+                    participant_id=None,
+                    display_name="Moderator",
                     text=seed_message,
+                    is_moderator=True,
                 )
 
         created_membership = await self._repository.create_membership(
@@ -80,12 +75,6 @@ class GroupAssignmentService:
                 if item.id == group.id
             )
 
-        await self._telegram_gateway.send_assignment_message(
-            chat_id=user.telegram_user_id,
-            thread_id=group.thread_id,
-            invite_link=group.invite_link,
-            topic_title=topic.title,
-        )
         return GroupAssignmentResult(
             group=group,
             was_created=was_created,

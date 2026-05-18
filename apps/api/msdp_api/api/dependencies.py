@@ -9,25 +9,13 @@ from fastapi import Header, HTTPException, Request, status
 from msdp_api.core.config import Settings, get_settings
 from msdp_api.repositories.protocols import Repository
 from msdp_api.services.cover_image import CoverImageService
-from msdp_api.services.group_assignment import GroupAssignmentService
 from msdp_api.services.summarization import SummarizationService
 from msdp_api.services.topic_suggestion import TopicSuggesterProtocol
-from msdp_api.telegram.service import TelegramWebhookService
 
 
 def get_repository(request: Request) -> Repository:
     """Return the repository stored on the application state."""
     return request.app.state.repository
-
-
-def get_group_assignment_service(request: Request) -> GroupAssignmentService:
-    """Return the group assignment service stored on the application state."""
-    return request.app.state.group_assignment_service
-
-
-def get_telegram_webhook_service(request: Request) -> TelegramWebhookService:
-    """Return the Telegram webhook service stored on the application state."""
-    return request.app.state.telegram_webhook_service
 
 
 def get_summarization_service(request: Request) -> SummarizationService:
