@@ -33,16 +33,28 @@ logger = logging.getLogger(__name__)
 
 
 async def _run_due_summarization_loop(
-    summarization_service: SummarizationService,
+    database_url: str,
+    openai_client: AsyncOpenAI,
+    summary_model: str,
     interval_seconds: int,
 ) -> None:
     """Periodically run due close summaries and active-topic cross-pollination."""
     while True:
+        conn: asyncpg.Connection | None = None
         try:
+            conn = await asyncpg.connect(database_url, statement_cache_size=0)
+            repository = PostgresRepository(conn)
+            summarization_service = SummarizationService(
+                repository=repository,
+                summarizer=OpenAISummarizer(client=openai_client, model=summary_model),
+            )
             await summarization_service.summarize_due_topics()
             await summarization_service.cross_pollinate_due_topics()
         except Exception:
             logger.exception("Failed to run due summarization jobs.")
+        finally:
+            if conn is not None:
+                await conn.close()
         await asyncio.sleep(interval_seconds)
 
 
@@ -50,46 +62,25 @@ async def _run_due_summarization_loop(
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Create runtime resources for the application."""
     settings = get_settings()
-    pool: asyncpg.Pool | None = None
     try:
-        pool = await asyncpg.create_pool(
-            settings.database_url,
-            min_size=0,
-            max_inactive_connection_lifetime=60,
-        )
-        await apply_migrations(pool)
+        conn = await asyncpg.connect(settings.database_url, statement_cache_size=0)
+        try:
+            await apply_migrations(conn)
+        finally:
+            await conn.close()
     except Exception:
         logger.exception(
             "Database unavailable at startup; DB-dependent endpoints will return errors."
         )
-    repository = PostgresRepository(pool) if pool is not None else InMemoryRepository()
-    summarization_service = SummarizationService(
-        repository=repository,
-        summarizer=OpenAISummarizer(
-            client=AsyncOpenAI(api_key=settings.openai_api_key),
-            model=settings.summary_model,
-        ),
-    )
-    cover_image_service = CoverImageService(
-        repository=repository,
-        client=AsyncOpenAI(api_key=settings.openai_api_key),
-        model=settings.cover_image_model,
-        blob_token=settings.blob_read_write_token,
-    )
-    topic_suggestion_service = TopicSuggestionService(
-        client=AsyncOpenAI(api_key=settings.openai_api_key),
-        model=settings.summary_model,
-    )
+    openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
     app.state.settings = settings
-    app.state.pool = pool
-    app.state.repository = repository
-    app.state.summarization_service = summarization_service
-    app.state.cover_image_service = cover_image_service
-    app.state.topic_suggestion_service = topic_suggestion_service
+    app.state.openai_client = openai_client
     app.state.group_subscribers: dict[UUID, list[asyncio.Queue]] = {}  # type: ignore[assignment]
     summary_task = asyncio.create_task(
         _run_due_summarization_loop(
-            summarization_service=summarization_service,
+            database_url=settings.database_url,
+            openai_client=openai_client,
+            summary_model=settings.summary_model,
             interval_seconds=settings.summary_check_interval_seconds,
         ),
     )
@@ -100,8 +91,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         summary_task.cancel()
         with suppress(asyncio.CancelledError):
             await summary_task
-        if pool is not None:
-            await pool.close()
 
 
 def create_app(
@@ -127,25 +116,26 @@ def create_app(
 
     if repository is not None:
         runtime_settings = settings or get_settings()
-        runtime_repository = repository
+        openai_client = AsyncOpenAI(api_key=runtime_settings.openai_api_key)
         runtime_summarizer = summarizer or OpenAISummarizer(
-            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
+            client=openai_client,
             model=runtime_settings.summary_model,
         )
         app.state.settings = runtime_settings
-        app.state.repository = runtime_repository
+        app.state.openai_client = openai_client
+        app.state.repository = repository
         app.state.summarization_service = SummarizationService(
-            repository=runtime_repository,
+            repository=repository,
             summarizer=runtime_summarizer,
         )
         app.state.cover_image_service = CoverImageService(
-            repository=runtime_repository,
-            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
+            repository=repository,
+            client=openai_client,
             model=runtime_settings.cover_image_model,
             blob_token=runtime_settings.blob_read_write_token,
         )
         app.state.topic_suggestion_service = topic_suggestion_service or TopicSuggestionService(
-            client=AsyncOpenAI(api_key=runtime_settings.openai_api_key),
+            client=openai_client,
             model=runtime_settings.summary_model,
         )
         app.state.group_subscribers: dict[UUID, list[asyncio.Queue]] = {}  # type: ignore[assignment]

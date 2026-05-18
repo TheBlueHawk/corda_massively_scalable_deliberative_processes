@@ -81,9 +81,9 @@ def _row_to_message(row: asyncpg.Record) -> ThreadMessage:
 class PostgresRepository:
     """Repository implementation using asyncpg."""
 
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        """Initialize the repository."""
-        self._pool = pool
+    def __init__(self, conn: asyncpg.Connection) -> None:
+        """Initialize the repository with a single open connection."""
+        self._conn = conn
 
     async def get_active_topic(self) -> Topic | None:
         """Return the first active topic."""
@@ -105,8 +105,7 @@ class PostgresRepository:
             ORDER BY created_at ASC
             LIMIT 1
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query)
+        row = await self._conn.fetchrow(query)
         return _row_to_topic(row) if row else None
 
     async def get_topic(self, topic_id: UUID) -> Topic | None:
@@ -127,8 +126,7 @@ class PostgresRepository:
             FROM topics
             WHERE id = $1
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, topic_id)
+        row = await self._conn.fetchrow(query, topic_id)
         return _row_to_topic(row) if row else None
 
     async def list_topics(self) -> Sequence[Topic]:
@@ -149,8 +147,7 @@ class PostgresRepository:
             FROM topics
             ORDER BY created_at DESC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query)
+        rows = await self._conn.fetch(query)
         return [_row_to_topic(row) for row in rows]
 
     async def list_due_topics(self, now: datetime) -> Sequence[Topic]:
@@ -174,8 +171,7 @@ class PostgresRepository:
                 AND closes_at <= $1
             ORDER BY closes_at ASC, created_at ASC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, now)
+        rows = await self._conn.fetch(query, now)
         return [_row_to_topic(row) for row in rows]
 
     async def list_cross_pollination_due_topics(self, now: datetime) -> Sequence[Topic]:
@@ -199,8 +195,7 @@ class PostgresRepository:
                 AND next_cross_pollination_at <= $1
             ORDER BY next_cross_pollination_at ASC, created_at ASC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, now)
+        rows = await self._conn.fetch(query, now)
         return [_row_to_topic(row) for row in rows]
 
     async def create_topic(self, payload: TopicCreate) -> Topic:
@@ -233,18 +228,17 @@ class PostgresRepository:
                 created_at
         """
         now = datetime.now(UTC)
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query,
-                payload.title,
-                payload.description,
-                payload.closes_at,
-                payload.cross_pollination_interval_seconds,
-                now + timedelta(seconds=payload.cross_pollination_interval_seconds),
-                payload.group_capacity,
-                payload.seed_bullets,
-                now,
-            )
+        row = await self._conn.fetchrow(
+            query,
+            payload.title,
+            payload.description,
+            payload.closes_at,
+            payload.cross_pollination_interval_seconds,
+            now + timedelta(seconds=payload.cross_pollination_interval_seconds),
+            payload.group_capacity,
+            payload.seed_bullets,
+            now,
+        )
         if row is None:
             msg = "Topic insert returned no row."
             raise RuntimeError(msg)
@@ -313,19 +307,18 @@ class PostgresRepository:
                 cover_image_url,
                 created_at
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query,
-                topic_id,
-                next_title,
-                next_description,
-                next_closes_at,
-                next_status.value,
-                next_interval,
-                next_cross_pollination_at,
-                next_group_capacity,
-                next_seed_bullets,
-            )
+        row = await self._conn.fetchrow(
+            query,
+            topic_id,
+            next_title,
+            next_description,
+            next_closes_at,
+            next_status.value,
+            next_interval,
+            next_cross_pollination_at,
+            next_group_capacity,
+            next_seed_bullets,
+        )
         return _row_to_topic(row) if row else None
 
     async def set_topic_cover_image_url(
@@ -351,8 +344,7 @@ class PostgresRepository:
                 cover_image_url,
                 created_at
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, topic_id, cover_image_url)
+        row = await self._conn.fetchrow(query, topic_id, cover_image_url)
         return _row_to_topic(row) if row else None
 
     async def schedule_next_cross_pollination(
@@ -378,8 +370,7 @@ class PostgresRepository:
                 cover_image_url,
                 created_at
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, topic_id, next_run_at)
+        row = await self._conn.fetchrow(query, topic_id, next_run_at)
         return _row_to_topic(row) if row else None
 
     async def close_topic(self, topic_id: UUID) -> Topic | None:
@@ -401,8 +392,7 @@ class PostgresRepository:
                 cover_image_url,
                 created_at
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, topic_id)
+        row = await self._conn.fetchrow(query, topic_id)
         return _row_to_topic(row) if row else None
 
     async def list_groups_for_topic(self, topic_id: UUID) -> Sequence[Group]:
@@ -414,8 +404,7 @@ class PostgresRepository:
             WHERE topic_id = $1
             ORDER BY member_count ASC, thread_id ASC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, topic_id)
+        rows = await self._conn.fetch(query, topic_id)
         return [_row_to_group(row) for row in rows]
 
     async def find_group_by_thread_id(self, thread_id: int) -> Group | None:
@@ -426,8 +415,7 @@ class PostgresRepository:
             FROM groups
             WHERE thread_id = $1
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, thread_id)
+        row = await self._conn.fetchrow(query, thread_id)
         return _row_to_group(row) if row else None
 
     async def create_group(
@@ -447,15 +435,14 @@ class PostgresRepository:
             RETURNING
                 id, topic_id, thread_id, invite_link, capacity, member_count, telegram_topic_name
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query,
-                topic_id,
-                thread_id,
-                invite_link,
-                capacity,
-                telegram_topic_name,
-            )
+        row = await self._conn.fetchrow(
+            query,
+            topic_id,
+            thread_id,
+            invite_link,
+            capacity,
+            telegram_topic_name,
+        )
         if row is None:
             msg = "Group insert returned no row."
             raise RuntimeError(msg)
@@ -469,13 +456,12 @@ class PostgresRepository:
             ON CONFLICT (telegram_user_id) DO UPDATE
             SET username = EXCLUDED.username, first_name = EXCLUDED.first_name
         """
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                query,
-                user.telegram_user_id,
-                user.username,
-                user.first_name,
-            )
+        await self._conn.execute(
+            query,
+            user.telegram_user_id,
+            user.username,
+            user.first_name,
+        )
         return user
 
     async def create_membership(self, telegram_user_id: int, group_id: UUID) -> bool:
@@ -485,8 +471,7 @@ class PostgresRepository:
             VALUES ($1, $2)
             ON CONFLICT DO NOTHING
         """
-        async with self._pool.acquire() as conn:
-            result = await conn.execute(query, telegram_user_id, group_id)
+        result = await self._conn.execute(query, telegram_user_id, group_id)
         return result.endswith("1")
 
     async def remove_membership(self, telegram_user_id: int, group_id: UUID) -> bool:
@@ -495,8 +480,7 @@ class PostgresRepository:
             DELETE FROM memberships
             WHERE telegram_user_id = $1 AND group_id = $2
         """
-        async with self._pool.acquire() as conn:
-            result = await conn.execute(query, telegram_user_id, group_id)
+        result = await self._conn.execute(query, telegram_user_id, group_id)
         return result.endswith("1")
 
     async def increment_group_member_count(self, group_id: UUID) -> None:
@@ -506,8 +490,7 @@ class PostgresRepository:
             SET member_count = member_count + 1
             WHERE id = $1
         """
-        async with self._pool.acquire() as conn:
-            await conn.execute(query, group_id)
+        await self._conn.execute(query, group_id)
 
     async def decrement_group_member_count(self, group_id: UUID) -> None:
         """Decrement the group member count."""
@@ -516,8 +499,7 @@ class PostgresRepository:
             SET member_count = GREATEST(member_count - 1, 0)
             WHERE id = $1
         """
-        async with self._pool.acquire() as conn:
-            await conn.execute(query, group_id)
+        await self._conn.execute(query, group_id)
 
     async def store_thread_message(self, message: ThreadMessage) -> None:
         """Store a thread message (Telegram-originated)."""
@@ -537,18 +519,17 @@ class PostgresRepository:
             WHERE message_id IS NOT NULL AND thread_id IS NOT NULL
             DO NOTHING
         """
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                query,
-                message.message_id,
-                message.thread_id,
-                message.group_id,
-                message.telegram_user_id,
-                message.username,
-                message.first_name,
-                message.text,
-                message.sent_at,
-            )
+        await self._conn.execute(
+            query,
+            message.message_id,
+            message.thread_id,
+            message.group_id,
+            message.telegram_user_id,
+            message.username,
+            message.first_name,
+            message.text,
+            message.sent_at,
+        )
 
     async def list_thread_messages(self, group_id: UUID) -> Sequence[ThreadMessage]:
         """Return stored messages for a group."""
@@ -569,8 +550,7 @@ class PostgresRepository:
             WHERE group_id = $1
             ORDER BY sent_at ASC, id ASC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, group_id)
+        rows = await self._conn.fetch(query, group_id)
         return [_row_to_message(row) for row in rows]
 
     async def upsert_summary(self, group_id: UUID, content: str) -> Summary:
@@ -582,8 +562,7 @@ class PostgresRepository:
             SET content = EXCLUDED.content, created_at = now()
             RETURNING id, group_id, content, created_at
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, group_id, content)
+        row = await self._conn.fetchrow(query, group_id, content)
         if row is None:
             msg = "Summary upsert returned no row."
             raise RuntimeError(msg)
@@ -598,8 +577,7 @@ class PostgresRepository:
             WHERE g.topic_id = $1
             ORDER BY s.created_at ASC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, topic_id)
+        rows = await self._conn.fetch(query, topic_id)
         return [_row_to_summary(row) for row in rows]
 
     async def create_participant(self, display_name: str) -> Participant:
@@ -609,8 +587,7 @@ class PostgresRepository:
             VALUES ($1)
             RETURNING id, display_name, created_at
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, display_name)
+        row = await self._conn.fetchrow(query, display_name)
         if row is None:
             msg = "Participant insert returned no row."
             raise RuntimeError(msg)
@@ -621,8 +598,7 @@ class PostgresRepository:
     async def get_participant(self, participant_id: UUID) -> Participant | None:
         """Return a participant by id."""
         query = "SELECT id, display_name, created_at FROM participants WHERE id = $1"
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, participant_id)
+        row = await self._conn.fetchrow(query, participant_id)
         if row is None:
             return None
         return Participant(
@@ -644,8 +620,7 @@ class PostgresRepository:
               AND g.topic_id = $2
             LIMIT 1
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, participant_id, topic_id)
+        row = await self._conn.fetchrow(query, participant_id, topic_id)
         return _row_to_group(row) if row else None
 
     async def get_group(self, group_id: UUID) -> Group | None:
@@ -655,8 +630,7 @@ class PostgresRepository:
                    member_count, telegram_topic_name
             FROM groups WHERE id = $1
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(query, group_id)
+        row = await self._conn.fetchrow(query, group_id)
         return _row_to_group(row) if row else None
 
     async def create_web_membership(self, participant_id: UUID, group_id: UUID) -> bool:
@@ -668,8 +642,7 @@ class PostgresRepository:
             WHERE participant_id IS NOT NULL
             DO NOTHING
         """
-        async with self._pool.acquire() as conn:
-            result = await conn.execute(query, participant_id, group_id)
+        result = await self._conn.execute(query, participant_id, group_id)
         return result.endswith("1")
 
     async def store_web_message(
@@ -689,10 +662,9 @@ class PostgresRepository:
             RETURNING id, message_id, thread_id, group_id, participant_id,
                       telegram_user_id, username, first_name, text, sent_at, is_moderator
         """
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                query, group_id, participant_id, display_name, text, is_moderator
-            )
+        row = await self._conn.fetchrow(
+            query, group_id, participant_id, display_name, text, is_moderator
+        )
         if row is None:
             msg = "Message insert returned no row."
             raise RuntimeError(msg)
@@ -707,6 +679,5 @@ class PostgresRepository:
             WHERE group_id = $1
             ORDER BY sent_at ASC, id ASC
         """
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, group_id)
+        rows = await self._conn.fetch(query, group_id)
         return [_row_to_message(row) for row in rows]

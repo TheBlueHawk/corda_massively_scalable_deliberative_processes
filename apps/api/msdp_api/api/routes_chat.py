@@ -9,10 +9,11 @@ import json
 from typing import Annotated
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from msdp_api.api.dependencies import get_repository
+from msdp_api.api.dependencies import get_repository, get_runtime_settings
 from msdp_api.db.models import (
     ChatJoinResponse,
     ChatMessageResponse,
@@ -20,6 +21,7 @@ from msdp_api.db.models import (
     ParticipantCreate,
     ThreadMessage,
 )
+from msdp_api.repositories.postgres import PostgresRepository
 from msdp_api.repositories.protocols import Repository
 from msdp_api.services.web_group_assignment import WebGroupAssignmentService
 
@@ -255,7 +257,6 @@ async def send_message(
 async def stream_messages(
     group_id: UUID,
     request: Request,
-    repository: Annotated[Repository, Depends(get_repository)],
     participant_id: str | None = None,
 ) -> StreamingResponse:
     """SSE stream of new messages for a group.
@@ -265,10 +266,29 @@ async def stream_messages(
 
     ``participant_id`` is accepted as a query parameter because the browser
     EventSource API does not support custom request headers.
+
+    A short-lived DB connection is opened only for the three upfront validation
+    queries, then closed before the long-running stream begins.  This prevents
+    an idle connection from blocking Neon scale-to-zero for the lifetime of a
+    browser tab.
     """
-    participant = await _resolve_participant(repository, participant_id)
-    topic_id = await _require_group(repository, group_id)
-    member_group = await repository.get_participant_group_for_topic(participant.id, topic_id)
+    # Validate membership with a short-lived connection; close before streaming.
+    if hasattr(request.app.state, "repository"):
+        repository: Repository = request.app.state.repository
+        participant = await _resolve_participant(repository, participant_id)
+        topic_id = await _require_group(repository, group_id)
+        member_group = await repository.get_participant_group_for_topic(participant.id, topic_id)
+    else:
+        settings = get_runtime_settings(request)
+        conn = await asyncpg.connect(settings.database_url, statement_cache_size=0)
+        try:
+            repo = PostgresRepository(conn)
+            participant = await _resolve_participant(repo, participant_id)
+            topic_id = await _require_group(repo, group_id)
+            member_group = await repo.get_participant_group_for_topic(participant.id, topic_id)
+        finally:
+            await conn.close()
+
     if member_group is None or member_group.id != group_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group."
