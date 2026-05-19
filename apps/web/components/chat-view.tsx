@@ -237,7 +237,7 @@ export function ChatView({ activeTopic }: ChatViewProps) {
       <div className="chat-stage chat-stage--thread">
         <header className="chat-header">
           <div>
-            <p className="eyebrow">Live group</p>
+            <p className="eyebrow">{activeTopic?.title ?? "Live deliberation"}</p>
             <h2 className="chat-header-title">{group.telegram_topic_name}</h2>
           </div>
           <span className="chat-header-meta">
