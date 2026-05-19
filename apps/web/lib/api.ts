@@ -3,6 +3,7 @@ export type ActiveTopic = {
   title: string;
   description: string | null;
   closes_at: string | null;
+  cover_image_url: string | null;
 };
 
 export type TopicStatus = "active" | "closed";

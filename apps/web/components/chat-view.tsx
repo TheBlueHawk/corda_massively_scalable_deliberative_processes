@@ -213,6 +213,14 @@ export function ChatView({ activeTopic }: ChatViewProps) {
       <main className="shell chat-shell">
         <div className="chat-stage chat-stage--centered">
           <div className="chat-card">
+            {activeTopic?.cover_image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={activeTopic.cover_image_url}
+                alt=""
+                className="chat-card-cover"
+              />
+            )}
             <p className="eyebrow">Live deliberation</p>
             <h1 className="chat-card-heading">{activeTopic?.title ?? "Active discussion"}</h1>
             {activeTopic?.description && (
@@ -236,7 +244,15 @@ export function ChatView({ activeTopic }: ChatViewProps) {
     <main className="shell chat-shell">
       <div className="chat-stage chat-stage--thread">
         <header className="chat-header">
-          <div>
+          {activeTopic?.cover_image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={activeTopic.cover_image_url}
+              alt=""
+              className="chat-header-cover"
+            />
+          )}
+          <div style={{ flex: 1 }}>
             <p className="eyebrow">{activeTopic?.title ?? "Live deliberation"}</p>
             <h2 className="chat-header-title">{group.telegram_topic_name}</h2>
           </div>
