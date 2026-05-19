@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -91,12 +91,12 @@ class TopicSuggestionResponse(BaseModel):
 
 
 class Group(BaseModel):
-    """A Telegram forum topic backing a deliberation group."""
+    """A deliberation group (web-based or Telegram-backed)."""
 
     id: UUID
     topic_id: UUID
-    thread_id: int
-    invite_link: str
+    thread_id: int | None
+    invite_link: str | None
     capacity: int
     member_count: int
     telegram_topic_name: str
@@ -136,16 +136,19 @@ class Summary(BaseModel):
 
 
 class ThreadMessage(BaseModel):
-    """A captured message from a Telegram forum topic."""
+    """A captured message from a forum topic (Telegram or web)."""
 
-    message_id: int
-    thread_id: int
+    id: UUID = Field(default_factory=uuid4)
+    message_id: int | None = None
+    thread_id: int | None = None
     group_id: UUID
-    telegram_user_id: int | None
+    participant_id: UUID | None = None
+    telegram_user_id: int | None = None
     username: str | None = None
     first_name: str | None = None
     text: str
     sent_at: datetime
+    is_moderator: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -193,8 +196,8 @@ class AdminGroupOverview(BaseModel):
 
     id: UUID
     topic_id: UUID
-    thread_id: int
-    invite_link: str
+    thread_id: int | None
+    invite_link: str | None
     capacity: int
     member_count: int
     telegram_topic_name: str
@@ -224,8 +227,8 @@ class AdminDashboardResponse(BaseModel):
 class AdminThreadMessageResponse(BaseModel):
     """Admin response item for a captured thread message."""
 
-    message_id: int
-    thread_id: int
+    message_id: int | None
+    thread_id: int | None
     group_id: UUID
     telegram_user_id: int | None
     username: str | None
@@ -278,3 +281,39 @@ class DueCrossPollinationResult(BaseModel):
 
     cross_pollinated_topics: list[CrossPollinationResult]
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class Participant(BaseModel):
+    """A web participant identified by a session UUID."""
+
+    id: UUID
+    display_name: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ParticipantCreate(BaseModel):
+    """Payload to register a new web participant."""
+
+    display_name: str = Field(min_length=1, max_length=80)
+
+
+class ChatMessageResponse(BaseModel):
+    """A message in a web group chat."""
+
+    id: UUID
+    group_id: UUID
+    participant_id: UUID | None
+    display_name: str
+    text: str
+    sent_at: datetime
+    is_moderator: bool
+
+
+class ChatJoinResponse(BaseModel):
+    """Response after a participant joins a topic."""
+
+    group: Group
+    messages: list[ChatMessageResponse]
+    already_member: bool

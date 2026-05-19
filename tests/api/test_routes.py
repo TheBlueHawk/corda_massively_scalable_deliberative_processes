@@ -107,32 +107,6 @@ def test_admin_requires_correct_key(client):
     assert response.status_code == 401
 
 
-def test_webhook_start_assigns_group(client, repository, telegram_gateway):
-    topic = client.post(
-        "/admin/topics",
-        headers={"X-Admin-Key": "admin-key"},
-        json={"title": "Housing"},
-    ).json()["topic"]
-
-    response = client.post(
-        "/webhook/telegram",
-        json={
-            "update_id": 1,
-            "message": {
-                "message_id": 11,
-                "date": 1_713_873_600,
-                "text": f"/start {topic['id']}",
-                "from": {"id": 42, "username": "participant", "first_name": "Pat"},
-            },
-        },
-    )
-
-    assert response.status_code == 200
-    assert len(repository.groups) == 1
-    assert len(repository.memberships) == 1
-    assert telegram_gateway.sent_messages[0]["chat_id"] == 42
-
-
 def test_admin_summarize_topic(client, repository):
     topic = asyncio.run(repository.create_topic(TopicCreate(title="Budget priorities")))
     group = asyncio.run(
@@ -337,7 +311,7 @@ def test_admin_summarize_due_topics(client, repository):
     assert asyncio.run(repository.get_topic(future_topic.id)).status == "active"
 
 
-def test_admin_cross_pollinate_due_topics(client, repository, telegram_gateway):
+def test_admin_cross_pollinate_due_topics(client, repository):
     due_topic = asyncio.run(
         repository.create_topic(
             TopicCreate(title="Due sharing", cross_pollination_interval_seconds=60),
@@ -382,7 +356,13 @@ def test_admin_cross_pollinate_due_topics(client, repository, telegram_gateway):
     assert response.status_code == 200
     assert len(response.json()["cross_pollinated_topics"]) == 1
     assert response.json()["cross_pollinated_topics"][0]["comments_posted"] == 2
-    assert len(telegram_gateway.moderator_comments) == 2
+    moderator_msgs = [
+        msg
+        for msgs in (asyncio.run(repository.list_messages_for_group(g.id)) for g in groups)
+        for msg in msgs
+        if msg.is_moderator
+    ]
+    assert len(moderator_msgs) == 2
 
 
 def test_get_topic_summaries(client, repository):

@@ -2,7 +2,6 @@ import { TopicListItem } from "@/lib/api";
 
 type HomeViewProps = {
   topics: TopicListItem[];
-  botUsername: string;
 };
 
 function formatCloseDate(value: string | null): string {
@@ -19,11 +18,7 @@ function getStatusLabel(topic: TopicListItem): string {
   return topic.status === "active" ? "Open now" : "Results available";
 }
 
-function getJoinUrl(botUsername: string, topicId: string): string {
-  return `https://t.me/${botUsername}?start=${topicId}`;
-}
-
-export function HomeView({ topics, botUsername }: HomeViewProps) {
+export function HomeView({ topics }: HomeViewProps) {
   const activeTopic = topics.find((topic) => topic.status === "active") ?? null;
   const pastTopics = topics.filter((topic) => topic.status === "closed");
   const latestClosedTopic = pastTopics[0] ?? null;
@@ -36,7 +31,7 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
         <p className="lede">
           {activeTopic
             ? (activeTopic.description ??
-              "A structured public deliberation where each participant is routed into a small Telegram discussion group.")
+              "A structured public deliberation where each participant is routed into a small discussion group.")
             : "There is no live deliberation right now. The next topic will land soon; meanwhile, explore the summaries from previous discussions."}
         </p>
         <div className="meta-line">
@@ -45,12 +40,7 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
         </div>
         <div className="actions">
           {activeTopic ? (
-            <a
-              className="primary-link"
-              href={getJoinUrl(botUsername, activeTopic.id)}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a className="primary-link" href="/app">
               Join a Group
             </a>
           ) : null}
@@ -81,16 +71,11 @@ export function HomeView({ topics, botUsername }: HomeViewProps) {
           </p>
           <p>
             Our goal: better dialogue, shared responsibility, and more meaningful outcomes. Join us
-            on Telegram and take part in your first structured discussion.
+            and take part in your first structured discussion.
           </p>
           {activeTopic ? (
-            <a
-              className="text-link"
-              href={getJoinUrl(botUsername, activeTopic.id)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Join us on Telegram
+            <a className="text-link" href="/app">
+              Join the discussion
             </a>
           ) : (
             <p className="soft-note">The next discussion will appear here soon.</p>

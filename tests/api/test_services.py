@@ -21,10 +21,7 @@ from msdp_api.services.topic_suggestion import TopicSuggestionService
 
 
 @pytest.mark.asyncio
-async def test_group_assignment_picks_least_full_group(
-    repository,
-    telegram_gateway,
-):
+async def test_group_assignment_picks_least_full_group(repository):
     topic = await repository.create_topic(TopicCreate(title="Topic"))
     first_group = await repository.create_group(
         topic_id=topic.id,
@@ -41,7 +38,7 @@ async def test_group_assignment_picks_least_full_group(
         telegram_topic_name="Group 2",
     )
     await repository.increment_group_member_count(first_group.id)
-    service = GroupAssignmentService(repository, telegram_gateway)
+    service = GroupAssignmentService(repository)
 
     result = await service.assign_user_to_topic(
         topic_id=topic.id,
@@ -54,10 +51,7 @@ async def test_group_assignment_picks_least_full_group(
 
 
 @pytest.mark.asyncio
-async def test_group_assignment_creates_group_when_existing_groups_are_full(
-    repository,
-    telegram_gateway,
-):
+async def test_group_assignment_creates_group_when_existing_groups_are_full(repository):
     topic = await repository.create_topic(TopicCreate(title="Topic"))
     first_group = await repository.create_group(
         topic_id=topic.id,
@@ -67,7 +61,7 @@ async def test_group_assignment_creates_group_when_existing_groups_are_full(
         telegram_topic_name="Group 1",
     )
     await repository.increment_group_member_count(first_group.id)
-    service = GroupAssignmentService(repository, telegram_gateway)
+    service = GroupAssignmentService(repository)
 
     result = await service.assign_user_to_topic(
         topic_id=topic.id,
@@ -76,16 +70,13 @@ async def test_group_assignment_creates_group_when_existing_groups_are_full(
     )
 
     assert result.was_created
-    assert result.group.thread_id == 1000 + 2
+    assert result.group.thread_id is None
 
 
 @pytest.mark.asyncio
-async def test_duplicate_start_does_not_create_duplicate_membership(
-    repository,
-    telegram_gateway,
-):
+async def test_duplicate_start_does_not_create_duplicate_membership(repository):
     topic = await repository.create_topic(TopicCreate(title="Topic"))
-    service = GroupAssignmentService(repository, telegram_gateway)
+    service = GroupAssignmentService(repository)
     user = User(telegram_user_id=3, first_name="Lin")
 
     first = await service.assign_user_to_topic(topic.id, user, topic)
@@ -269,11 +260,7 @@ async def test_summarization_service_summarizes_due_topics_and_closes_them(
 
 
 @pytest.mark.asyncio
-async def test_cross_pollination_summarizes_and_posts_comments(
-    repository,
-    summarizer,
-    telegram_gateway,
-):
+async def test_cross_pollination_summarizes_and_posts_comments(repository, summarizer):
     topic = await repository.create_topic(
         TopicCreate(title="Shared learning", cross_pollination_interval_seconds=60),
     )
@@ -307,7 +294,7 @@ async def test_cross_pollination_summarizes_and_posts_comments(
                 sent_at=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
             ),
         )
-    service = SummarizationService(repository, summarizer, telegram_gateway)
+    service = SummarizationService(repository, summarizer)
 
     result = await service.cross_pollinate_topic(
         topic.id, datetime(2026, 4, 23, 11, 0, tzinfo=UTC)
@@ -316,15 +303,17 @@ async def test_cross_pollination_summarizes_and_posts_comments(
     assert result.summarized_groups == 2
     assert result.comments_posted == 2
     assert result.next_cross_pollination_at == datetime(2026, 4, 23, 11, 1, tzinfo=UTC)
-    assert [item["thread_id"] for item in telegram_gateway.moderator_comments] == [11, 12]
+    moderator_msgs = [
+        msg
+        for group in (first_group, second_group)
+        for msg in await repository.list_messages_for_group(group.id)
+        if msg.is_moderator
+    ]
+    assert len(moderator_msgs) == 2
 
 
 @pytest.mark.asyncio
-async def test_cross_pollination_due_topics_only_runs_due_active_topics(
-    repository,
-    summarizer,
-    telegram_gateway,
-):
+async def test_cross_pollination_due_topics_only_runs_due_active_topics(repository, summarizer):
     due_topic = await repository.create_topic(
         TopicCreate(title="Due", cross_pollination_interval_seconds=60),
     )
@@ -351,7 +340,7 @@ async def test_cross_pollination_due_topics_only_runs_due_active_topics(
             capacity=2,
             telegram_topic_name="Group 1",
         )
-    service = SummarizationService(repository, summarizer, telegram_gateway)
+    service = SummarizationService(repository, summarizer)
 
     result = await service.cross_pollinate_due_topics(datetime(2026, 4, 23, 11, 0, tzinfo=UTC))
 
