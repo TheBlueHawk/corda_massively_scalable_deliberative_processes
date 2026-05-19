@@ -129,6 +129,33 @@ async def _publish(request: Request, group_id: UUID, response: ChatMessageRespon
 # ---------------------------------------------------------------------------
 
 
+@router.get("/my-groups")
+async def list_my_groups(
+    repository: Annotated[Repository, Depends(get_repository)],
+    x_participant_id: Annotated[str | None, Header(alias="X-Participant-Id")] = None,
+) -> list[dict[str, object]]:
+    """Return all groups and their topics for the authenticated participant."""
+    participant = await _resolve_participant(repository, x_participant_id)
+    entries = await repository.list_participant_groups(participant.id)
+    return [
+        {
+            "group": {
+                "id": str(g.id),
+                "topic_id": str(g.topic_id),
+                "telegram_topic_name": g.telegram_topic_name,
+                "capacity": g.capacity,
+                "member_count": g.member_count,
+            },
+            "topic": {
+                "id": str(t.id),
+                "title": t.title,
+                "status": t.status.value,
+            },
+        }
+        for g, t in entries
+    ]
+
+
 @router.post("/participants", response_model=Participant, status_code=status.HTTP_201_CREATED)
 async def create_participant(
     payload: ParticipantCreate,

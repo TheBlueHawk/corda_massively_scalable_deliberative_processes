@@ -18,6 +18,11 @@ export default function RootLayout({
         <Link className="site-mark" href="/">
           CORDA
         </Link>
+        <nav className="site-nav">
+          <Link className="site-nav-link" href="/chats">
+            Chats
+          </Link>
+        </nav>
         {children}
       </body>
     </html>

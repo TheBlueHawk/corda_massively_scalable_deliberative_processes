@@ -681,3 +681,29 @@ class PostgresRepository:
         """
         rows = await self._conn.fetch(query, group_id)
         return [_row_to_message(row) for row in rows]
+
+    async def list_participant_groups(self, participant_id: UUID) -> list[tuple[Group, Topic]]:
+        """Return (group, topic) pairs for all groups the participant belongs to."""
+        groups_query = """
+            SELECT g.id, g.topic_id, g.thread_id, g.invite_link,
+                   g.capacity, g.member_count, g.telegram_topic_name
+            FROM groups g
+            JOIN memberships m ON m.group_id = g.id
+            WHERE m.participant_id = $1
+        """
+        group_rows = await self._conn.fetch(groups_query, participant_id)
+        if not group_rows:
+            return []
+        groups = [_row_to_group(row) for row in group_rows]
+        topic_ids = list({g.topic_id for g in groups})
+        topics_query = """
+            SELECT id, title, description, status, closes_at,
+                   cross_pollination_interval_seconds, next_cross_pollination_at,
+                   group_capacity, seed_bullets, cover_image_url, created_at
+            FROM topics WHERE id = ANY($1::uuid[])
+        """
+        topic_rows = await self._conn.fetch(topics_query, topic_ids)
+        topics_by_id = {row["id"]: _row_to_topic(row) for row in topic_rows}
+        result = [(g, topics_by_id[g.topic_id]) for g in groups if g.topic_id in topics_by_id]
+        result.sort(key=lambda gt: gt[1].created_at, reverse=True)
+        return result

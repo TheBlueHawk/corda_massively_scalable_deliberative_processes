@@ -266,6 +266,11 @@ export type ChatJoinResponse = {
   already_member: boolean;
 };
 
+export type ParticipantGroupEntry = {
+  group: ChatGroup;
+  topic: { id: string; title: string; status: TopicStatus };
+};
+
 async function chatFetch(
   path: string,
   participantId?: string,
@@ -337,4 +342,10 @@ export async function getGroupMessages(
 
 export function getChatStreamUrl(groupId: string): string {
   return `${getApiBaseUrl()}/chat/groups/${groupId}/stream`;
+}
+
+export async function getMyGroups(participantId: string): Promise<ParticipantGroupEntry[]> {
+  const response = await chatFetch("/chat/my-groups", participantId);
+  if (!response.ok) throw new Error("Failed to fetch groups.");
+  return (await response.json()) as ParticipantGroupEntry[];
 }

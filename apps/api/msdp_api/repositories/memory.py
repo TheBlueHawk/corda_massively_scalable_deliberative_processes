@@ -355,3 +355,18 @@ class InMemoryRepository:
         return [
             summary for group_id, summary in self.summaries.items() if group_id in topic_group_ids
         ]
+
+    async def list_participant_groups(self, participant_id: UUID) -> list[tuple[Group, Topic]]:
+        """Return (group, topic) pairs for all groups the participant belongs to."""
+        member_group_ids = {
+            group_id for (pid, group_id) in self.web_memberships if pid == participant_id
+        }
+        result = []
+        for group in self.groups.values():
+            if group.id not in member_group_ids:
+                continue
+            topic = self.topics.get(group.topic_id)
+            if topic is not None:
+                result.append((group, topic))
+        result.sort(key=lambda gt: gt[1].created_at, reverse=True)
+        return result
